@@ -1,0 +1,77 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "cargo build",
+            "dependsOn": [
+                "cargo build little-bits",
+                "cargo build game"
+            ]
+        },
+        {
+            "label": "cargo build release",
+            "dependsOn": [
+                "cargo build little-bits release",
+                "cargo build game release"
+            ]
+        },
+
+        {
+            "label": "cargo build little-bits",
+            "type": "cargo",
+            "command": "build",
+            "args": [
+                "--lib"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/little_bits/"
+            },
+        },
+        {
+            "label": "cargo build little-bits release",
+            "type": "cargo",
+            "command": "build",
+            "args": [
+                "--release",
+                "--lib"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/little_bits/"
+            },
+        },
+
+        {
+            "label": "cargo build game",
+            "type": "cargo",
+            "command": "build",
+            "args": [
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/game/"
+            },
+        },
+        {
+            "label": "cargo build game release",
+            "type": "cargo",
+            "command": "build",
+            "args": [
+                "--release",
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/game/"
+            },
+        }
+    ]
+}
