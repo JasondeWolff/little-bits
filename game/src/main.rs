@@ -13,24 +13,23 @@ fn main() {
 }
 
 struct Example {
-    cube_model: Option<Rc<Model>>
+    chair_model: Option<Rc<Model>>
 }
 
 impl Game for Example {
     fn new() -> Box<Example> {
         Box::new(Example {
-            cube_model: None
+            chair_model: None
         })
     }
 
     fn start(&mut self) {
-        //self.cube_model = Some(app().resources().get_model(String::from("assets/wooden_chair/wooden_chair.fbx")));
-        self.cube_model = Some(app().resources().get_model(String::from("assets/monkey.fbx")));
+        self.chair_model = Some(app().resources().get_model(String::from("assets/wooden_chair/wooden_chair.fbx")));
     }
     
     fn update(&mut self, delta_time: f32) {
         if (!app().input().mouse_button(MouseButton::Left)) {
-            app().graphics().draw_model(self.cube_model.as_ref().unwrap().clone());
+            app().graphics().draw_model(self.chair_model.as_ref().unwrap().clone());
         }
     }
     

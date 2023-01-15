@@ -1,4 +1,5 @@
 extern crate gl;
+pub use gl::types::*;
 
 extern crate glfw;
 use glfw::Window;
@@ -10,16 +11,9 @@ pub use crate::maths::*;
 pub fn gl_init(window: &mut Window) {
     gl::load_with(|s| window.get_proc_address(s) as *const _);
     gl_check();
-
-    unsafe {
-        gl::Enable(gl::DEPTH_TEST);
-	    //gl::Enable(gl::CULL_FACE);
-	    //gl::CullFace(gl::BACK);
-        gl_check();
-    }
 }
 
-pub fn gl_check() {
+fn gl_check() {
     unsafe {
         let error = gl::GetError();
         match error {
@@ -38,6 +32,21 @@ pub fn gl_check() {
 /*****************************************************************************
 *                               COMMON
 ******************************************************************************/
+
+pub fn gl_enable_depth() {
+    unsafe {
+        gl::Enable(gl::DEPTH_TEST);
+        gl_check();
+    }
+}
+
+pub fn gl_cull(mode: GLenum) {
+    unsafe {
+        gl::Enable(gl::CULL_FACE);
+        gl::CullFace(mode);
+        gl_check();
+    }
+}
 
 pub fn gl_clear_color(color: Float3) {
     unsafe {
@@ -65,52 +74,6 @@ pub fn gl_viewport(dimensions: Int2) {
 ******************************************************************************/
 
 pub type GLBuffer = gl::types::GLuint;
-
-pub fn gl_gen_buffer() -> GLBuffer {
-    let mut buffer: u32 = 0;
-    unsafe {
-        gl::GenBuffers(1, &mut buffer);
-        gl_check();
-    }
-    buffer
-}
-
-pub fn gl_gen_vert_array() -> GLBuffer {
-    let mut buffer: u32 = 0;
-    unsafe {
-        gl::GenVertexArrays(1, &mut buffer);
-        gl_check();
-    }
-    buffer
-}
-
-pub fn gl_del_buffer(buffer: GLBuffer) {
-    unsafe {
-        gl::DeleteBuffers(1, &buffer);
-        gl_check();
-    }
-}
-
-pub fn gl_del_vert_array(buffer: GLBuffer) {
-    unsafe {
-        gl::DeleteVertexArrays(1, &buffer);
-        gl_check();
-    }
-}
-
-pub fn gl_vertex_attrib_ptr(index: u32, size: usize, stride: usize, ptr: *const c_void) {
-    unsafe {
-        gl::VertexAttribPointer(index, size as i32, gl::FLOAT, gl::FALSE, stride as i32, ptr);
-        gl_check();
-    }
-}
-
-pub fn gl_enable_vertex_attrib_array(index: u32) {
-    unsafe {
-        gl::EnableVertexAttribArray(index);
-        gl_check();
-    }
-}
 
 pub trait IGLBuffer {
     fn new() -> Self;
@@ -235,116 +198,58 @@ impl Drop for GLEBO {
     }
 }
 
+fn gl_gen_buffer() -> GLBuffer {
+    let mut buffer: u32 = 0;
+    unsafe {
+        gl::GenBuffers(1, &mut buffer);
+        gl_check();
+    }
+    buffer
+}
+
+fn gl_gen_vert_array() -> GLBuffer {
+    let mut buffer: u32 = 0;
+    unsafe {
+        gl::GenVertexArrays(1, &mut buffer);
+        gl_check();
+    }
+    buffer
+}
+
+fn gl_del_buffer(buffer: GLBuffer) {
+    unsafe {
+        gl::DeleteBuffers(1, &buffer);
+        gl_check();
+    }
+}
+
+fn gl_del_vert_array(buffer: GLBuffer) {
+    unsafe {
+        gl::DeleteVertexArrays(1, &buffer);
+        gl_check();
+    }
+}
+
+pub fn gl_vertex_attrib_ptr(index: u32, size: usize, stride: usize, ptr: *const c_void) {
+    unsafe {
+        gl::VertexAttribPointer(index, size as i32, gl::FLOAT, gl::FALSE, stride as i32, ptr);
+        gl_check();
+    }
+}
+
+pub fn gl_enable_vertex_attrib_array(index: u32) {
+    unsafe {
+        gl::EnableVertexAttribArray(index);
+        gl_check();
+    }
+}
+
 /*****************************************************************************
 *                               SHADERS
 ******************************************************************************/
 
-pub type GLShaderBuffer = gl::types::GLuint;
-pub type GLShaderProgramBuffer = gl::types::GLuint;
-
-pub fn gl_create_vert_shader() -> GLShaderBuffer {
-    unsafe {
-        let shader: GLShaderBuffer = gl::CreateShader(gl::VERTEX_SHADER);
-        gl_check();
-        shader
-    }
-}
-
-pub fn gl_create_frag_shader() -> GLShaderBuffer {
-    unsafe {
-        let shader: GLShaderBuffer = gl::CreateShader(gl::FRAGMENT_SHADER);
-        gl_check();
-        shader
-    }
-}
-
-pub fn gl_shader_source(shader: GLShaderBuffer, source: &String) {
-    let mut safe_source = source.clone();
-    safe_source.push('\0');
-
-    unsafe {
-        let source_ptr_ptr = &(safe_source.as_ptr()) as *const *const u8;
-        gl::ShaderSource(shader, 1, source_ptr_ptr as *const *const gl::types::GLchar, std::ptr::null());
-        gl_check();
-    }
-}
-
-pub fn gl_compile_shader(shader: GLShaderBuffer) {
-    unsafe {
-        gl::CompileShader(shader);
-        gl_check();
-
-        if cfg!(debug_assertions) {
-            let mut buffer_data: [u8; 1024] = [0; 1024];
-            let mut info_size: usize = 0;
-
-            gl::GetShaderInfoLog(shader, (mem::size_of::<char>() * buffer_data.len()) as i32, (&mut info_size) as *mut usize as *mut i32, buffer_data.as_mut_ptr() as *mut c_char);
-            gl_check();
-
-            let mut buffer_str: String = String::new();
-            for i in 0..info_size {
-                buffer_str.push(buffer_data[i] as char);
-            }
-
-            if (info_size > 0 && buffer_str.contains("error")) {
-               panic!("Failed to compile shader. \nOpenGL Error:\n{}\n", buffer_str);
-            }
-        }
-    }
-}
-
-pub fn gl_attach_shader(shader: GLShaderBuffer, shader_program: GLShaderProgramBuffer) {
-    unsafe {
-        gl::AttachShader(shader_program, shader);
-        gl_check();
-    }
-}
-
-pub fn gl_del_shader(shader: GLShaderBuffer) {
-    unsafe {
-        gl::DeleteShader(shader);
-        gl_check();
-    }
-}
-
-pub fn gl_create_program() -> GLShaderProgramBuffer {
-    unsafe {
-        let program = gl::CreateProgram();
-        gl_check();
-        program
-    }
-}
-
-pub fn gl_link_program(shader_program: GLShaderProgramBuffer) {
-    unsafe {
-        gl::LinkProgram(shader_program);
-        gl_check();
-
-        if cfg!(debug_assertions) {
-            let mut buffer_data: [u8; 1024] = [0; 1024];
-            let mut info_size: usize = 0;
-
-            gl::GetProgramInfoLog(shader_program, (mem::size_of::<char>() * buffer_data.len()) as i32, (&mut info_size) as *mut usize as *mut i32, buffer_data.as_mut_ptr() as *mut c_char);
-            gl_check();
-
-            let mut buffer_str: String = String::new();
-            for i in 0..info_size {
-                buffer_str.push(buffer_data[i] as char);
-            }
-
-            if (info_size > 0 && buffer_str.contains("error")) {
-               panic!("Failed to link program. \nOpenGL Error:\n{}\n", buffer_str);
-            }
-        }
-    }
-}
-
-pub fn gl_use_program(shader_program: GLShaderProgramBuffer) {
-    unsafe {
-        gl::UseProgram(shader_program);
-        gl_check();
-    }
-}
+type GLShaderBuffer = gl::types::GLuint;
+type GLShaderProgramBuffer = gl::types::GLuint;
 
 pub struct GLShader {
     buffer: GLShaderBuffer
@@ -390,7 +295,7 @@ pub struct GLShaderProgram {
 #[derive(Clone)]
 pub struct GLUniform {
     name: String,
-    sort: u32,
+    category: u32,
     size: i32
 }
 
@@ -453,7 +358,7 @@ impl GLShaderProgram {
 
                     uniforms.push(GLUniform {
                         name: name_str,
-                        sort: uniform_type,
+                        category: uniform_type,
                         size: uniform_size
                     })
                 }
@@ -485,6 +390,10 @@ impl GLShaderProgram {
         }
     }
 
+    pub fn set_sampler_slot(&mut self, name: &String, value: i32) {
+        self.set_int(name, value);
+    }
+
     fn uniform_location(&mut self, name: &String) -> i32 {
         match self.uniform_locations.get(name) {
             Some(location) => location.clone(),
@@ -505,6 +414,110 @@ impl GLShaderProgram {
     }
 }
 
+fn gl_create_vert_shader() -> GLShaderBuffer {
+    unsafe {
+        let shader: GLShaderBuffer = gl::CreateShader(gl::VERTEX_SHADER);
+        gl_check();
+        shader
+    }
+}
+
+fn gl_create_frag_shader() -> GLShaderBuffer {
+    unsafe {
+        let shader: GLShaderBuffer = gl::CreateShader(gl::FRAGMENT_SHADER);
+        gl_check();
+        shader
+    }
+}
+
+fn gl_shader_source(shader: GLShaderBuffer, source: &String) {
+    let mut safe_source = source.clone();
+    safe_source.push('\0');
+
+    unsafe {
+        let source_ptr_ptr = &(safe_source.as_ptr()) as *const *const u8;
+        gl::ShaderSource(shader, 1, source_ptr_ptr as *const *const gl::types::GLchar, std::ptr::null());
+        gl_check();
+    }
+}
+
+fn gl_compile_shader(shader: GLShaderBuffer) {
+    unsafe {
+        gl::CompileShader(shader);
+        gl_check();
+
+        if cfg!(debug_assertions) {
+            let mut buffer_data: [u8; 1024] = [0; 1024];
+            let mut info_size: usize = 0;
+
+            gl::GetShaderInfoLog(shader, (mem::size_of::<char>() * buffer_data.len()) as i32, (&mut info_size) as *mut usize as *mut i32, buffer_data.as_mut_ptr() as *mut c_char);
+            gl_check();
+
+            let mut buffer_str: String = String::new();
+            for i in 0..info_size {
+                buffer_str.push(buffer_data[i] as char);
+            }
+
+            if (info_size > 0 && buffer_str.contains("error")) {
+               panic!("Failed to compile shader. \nOpenGL Error:\n{}\n", buffer_str);
+            }
+        }
+    }
+}
+
+fn gl_attach_shader(shader: GLShaderBuffer, shader_program: GLShaderProgramBuffer) {
+    unsafe {
+        gl::AttachShader(shader_program, shader);
+        gl_check();
+    }
+}
+
+fn gl_del_shader(shader: GLShaderBuffer) {
+    unsafe {
+        gl::DeleteShader(shader);
+        gl_check();
+    }
+}
+
+fn gl_create_program() -> GLShaderProgramBuffer {
+    unsafe {
+        let program = gl::CreateProgram();
+        gl_check();
+        program
+    }
+}
+
+fn gl_link_program(shader_program: GLShaderProgramBuffer) {
+    unsafe {
+        gl::LinkProgram(shader_program);
+        gl_check();
+
+        if cfg!(debug_assertions) {
+            let mut buffer_data: [u8; 1024] = [0; 1024];
+            let mut info_size: usize = 0;
+
+            gl::GetProgramInfoLog(shader_program, (mem::size_of::<char>() * buffer_data.len()) as i32, (&mut info_size) as *mut usize as *mut i32, buffer_data.as_mut_ptr() as *mut c_char);
+            gl_check();
+
+            let mut buffer_str: String = String::new();
+            for i in 0..info_size {
+                buffer_str.push(buffer_data[i] as char);
+            }
+
+            if (info_size > 0 && buffer_str.contains("error")) {
+               panic!("Failed to link program. \nOpenGL Error:\n{}\n", buffer_str);
+            }
+        }
+    }
+}
+
+fn gl_use_program(shader_program: GLShaderProgramBuffer) {
+    unsafe {
+        gl::UseProgram(shader_program);
+        gl_check();
+    }
+}
+
 /*****************************************************************************
 *                               DRAWING
 ******************************************************************************/
@@ -512,6 +525,71 @@ impl GLShaderProgram {
 pub fn gl_draw_elems(mode: gl::types::GLenum, count: usize, index_type: gl::types::GLenum) {
     unsafe {
         gl::DrawElements(mode, count as i32, index_type, std::ptr::null());
+        gl_check();
+    }
+}
+
+/*****************************************************************************
+*                               TEXTURES
+******************************************************************************/
+
+pub type GLTextureBuffer = gl::types::GLuint;
+type GLTextureType = gl::types::GLenum;
+
+pub fn gl_gen_texture() -> GLTextureBuffer {
+    unsafe {
+        let mut buffer: GLTextureBuffer = 0;
+        gl::GenTextures(1, &mut buffer as *mut GLTextureBuffer);
+        gl_check();
+        buffer
+    }
+}
+
+pub fn gl_del_texture(texture: GLTextureBuffer) {
+    unsafe {
+        gl::DeleteTextures(1, &texture as *const u32);
+        gl_check();
+    }
+}
+
+pub fn gl_bind_texture(target: GLTextureType, texture: GLTextureBuffer) {
+    unsafe {
+        gl::BindTexture(target, texture);
+        gl_check;
+    }
+}
+
+pub fn gl_unbind_texture(target: GLTextureType) {
+    unsafe {
+        gl::BindTexture(target, 0);
+        gl_check;
+    }
+}
+
+pub fn gl_tex_parami(target: GLTextureType, name: GLenum, param: u32) {
+    unsafe {
+        gl::TexParameteri(target, name, param as i32);
+        gl_check();
+    }
+}
+
+pub fn gl_gen_mips(target: GLTextureType) {
+    unsafe {
+        gl::GenerateMipmap(target);
+        gl_check();
+    }
+}
+
+pub fn gl_tex_image_2D(internal_format: u32, width: i32, height: i32, format: u32, data: *const c_void) {
+    unsafe {
+        gl::TexImage2D(gl::TEXTURE_2D, 0, internal_format as i32, width, height, format as i32, 0, gl::UNSIGNED_BYTE, data);
+        gl_check();
+    }
+}
+
+pub fn gl_active_texture(slot: u32) {
+    unsafe {
+        gl::ActiveTexture(gl::TEXTURE0 + slot);
         gl_check();
     }
 }

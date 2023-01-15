@@ -39,6 +39,8 @@ impl System for Graphics {
         glfw.set_swap_interval(glfw::SwapInterval::Sync(0));
 
         gl_init(&mut window);
+        gl_enable_depth();
+        gl_cull(gl::BACK);
 
         let vertex_shader_src = app().resources().get_text(String::from("assets/shaders/vert.glsl"));
         let vertex_shader = GLShader::new(GLShaderType::VERTEX, &vertex_shader_src);

@@ -17,6 +17,7 @@ pub struct Application {
     resources: Option<Box<Resources>>,
     input: Option<Box<Input>>,
 
+    timer: Timer,
     stopped: bool,
     game: Box<dyn Game>,
 }
@@ -36,6 +37,7 @@ impl Application {
             resources: None,
             input: None,
 
+            timer: Timer::new(),
             stopped: false,
             game: game
         })
@@ -88,6 +90,10 @@ impl Application {
 
     pub fn input(&mut self) -> &mut Input {
         self.input.as_mut().expect("Failed to get input.").as_mut()
+    }
+
+    pub fn time(&self) -> f32 {
+        self.timer.elapsed() as f32
     }
 }
 

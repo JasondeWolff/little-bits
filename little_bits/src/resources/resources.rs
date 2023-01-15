@@ -1,26 +1,45 @@
-use std::rc::Rc;
 use assimp;
+extern crate stb_image;
+
+use std::rc::Rc;
 use std::fs;
+use std::ffi::CString;
+use std::collections::HashMap;
 
 use crate::system::*;
 use crate::maths::*;
 
+#[path = "resource_manager.rs"] pub mod resource_manager;
+pub use resource_manager::*;
+
 #[path = "model.rs"] pub mod model;
 pub use model::*;
 
-pub struct Resources {
+#[path = "image.rs"] pub mod image;
+pub use image::*;
 
+pub struct Resources {
+    model_manager: ResourceManager<Model>,
+    text_manager: ResourceManager<String>,
+    image_manager: ResourceManager<Image>,
+
+    pub kill_time: f32
 }
 
 impl System for Resources {
     fn init() -> Box<Resources> {
         Box::new(Resources {
-            
+            model_manager: ResourceManager::new(5.0),
+            text_manager: ResourceManager::new(5.0),
+            image_manager: ResourceManager::new(5.0),
+            kill_time: 5.0
         })
     }
 
     fn update(&mut self) {
-
+        self.model_manager.update();
+        self.text_manager.update();
+        self.image_manager.update();
     }
 }
 
@@ -59,33 +78,86 @@ impl Resources {
     }
 
     pub fn get_model(&mut self, asset_path: String) -> Rc<Model> {
-        let mut importer = assimp::Importer::new();
-        importer.join_identical_vertices(true);
-        importer.triangulate(true);
-        importer.generate_normals(|mut args| {
-            args.enable = true;
-            args.smooth = true;
-        });
-        importer.pre_transform_vertices(|mut args| {
-            args.enable = true;
-        });
-        importer.gen_uv_coords(true);
-        importer.optimize_meshes(true);
+        match self.model_manager.get(&asset_path) {
+            Some(resource) => resource,
+            None => {
+                let mut importer = assimp::Importer::new();
+                importer.join_identical_vertices(true);
+                importer.triangulate(true);
+                importer.generate_normals(|mut args| {
+                    args.enable = true;
+                    args.smooth = true;
+                });
+                importer.calc_tangent_space(|mut args| {
+                    args.enable = true;
+                });
+                importer.pre_transform_vertices(|mut args| {
+                    args.enable = true;
+                });
+                importer.gen_uv_coords(true);
+                importer.optimize_meshes(true);
 
-        let model = importer.read_file(asset_path.as_str()).expect("Failed to get model.");
+                let model = importer.read_file(asset_path.as_str()).expect("Failed to get model.");
         
-        let mut meshes: Vec<Mesh> = Vec::with_capacity(model.num_meshes as usize);
-        for mesh in 0..model.num_meshes {
-            meshes.push(Self::process_mesh(model.mesh(mesh as usize).expect("Failed to get model.")));
-        }
+                let mut meshes: Vec<Mesh> = Vec::with_capacity(model.num_meshes as usize);
+                for mesh in 0..model.num_meshes {
+                    meshes.push(Self::process_mesh(model.mesh(mesh as usize).expect("Failed to get model.")));
+                }
 
-        Rc::new(Model {
-            meshes: meshes
-        })
+                let resource = Rc::new(Model {
+                    meshes: meshes,
+                    materials: Vec::new()
+                });
+
+                self.model_manager.insert(resource.clone(), asset_path);
+                resource
+            }
+        }
     }
 
     pub fn get_text(&mut self, asset_path: String) -> Rc<String> {
-        let contents = fs::read_to_string(asset_path).expect("Failed to read text file.");
-        Rc::new(contents)
+        match self.text_manager.get(&asset_path) {
+            Some(resource) => resource,
+            None => {
+                let contents = fs::read_to_string(asset_path.clone()).expect("Failed to read text file.");
+                let resource = Rc::new(contents);
+
+                self.text_manager.insert(resource.clone(), asset_path);
+                resource
+            }
+        }
+    }
+
+    pub fn get_image(&mut self, asset_path: String) -> Rc<Image> {
+        match self.image_manager.get(&asset_path) {
+            Some(resource) => resource,
+            None => {
+                let c_asset_path = CString::new(asset_path.as_bytes()).unwrap();
+
+                unsafe {
+                    stb_image::stb_image::bindgen::stbi_set_flip_vertically_on_load(1);
+            
+                    let mut width = 0;
+                    let mut height = 0;
+                    let mut channels = 0;
+                    let data = stb_image::stb_image::bindgen::stbi_load(
+                c_asset_path.as_ptr(),
+                        &mut width,
+                        &mut height,
+                        &mut channels,
+                        0,
+                    );
+
+                    let resource = Rc::new(Image {
+                        data: data,
+                        dimensions: Int2::new(width, height),
+                        channel_count: channels
+                    });
+
+                    self.image_manager.insert(resource.clone(), asset_path);
+                    resource
+                }
+            }
+        }
     }
 }
