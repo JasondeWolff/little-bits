@@ -11,7 +11,7 @@ pub struct GLMesh {
     vbo: Option<GLVBO>,
     ebo: Option<GLEBO>,
 
-    indexCount: usize
+    index_count: usize
 }
 
 #[repr(C)]
@@ -59,7 +59,7 @@ impl GLMesh {
             vao: Some(vao),
             vbo: Some(vbo),
             ebo: Some(ebo),
-            indexCount: indices.len()
+            index_count: indices.len()
         }
     }
 
@@ -69,7 +69,7 @@ impl GLMesh {
 
     pub fn draw(&self) {
         self.vao().bind(); {
-            gl_draw_elems(gl::TRIANGLES, self.indexCount, gl::UNSIGNED_INT);
+            gl_draw_elems(gl::TRIANGLES, self.index_count, gl::UNSIGNED_INT);
         } self.vao().unbind();
     }
 }

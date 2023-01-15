@@ -4,7 +4,6 @@ extern crate stb_image;
 use std::rc::Rc;
 use std::fs;
 use std::ffi::CString;
-use std::collections::HashMap;
 
 use crate::system::*;
 use crate::maths::*;

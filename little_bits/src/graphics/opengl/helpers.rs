@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 extern crate gl;
 pub use gl::types::*;
 
@@ -109,7 +111,7 @@ impl IGLBuffer for GLVAO {
         }
     }
 
-    fn set_data(&self, size: usize, data: *mut c_void) {
+    fn set_data(&self, _: usize, _: *mut c_void) {
         panic!("Failed to set data on VAO.")
     }
 }
@@ -458,7 +460,7 @@ fn gl_compile_shader(shader: GLShaderBuffer) {
                 buffer_str.push(buffer_data[i] as char);
             }
 
-            if (info_size > 0 && buffer_str.contains("error")) {
+            if info_size > 0 && buffer_str.contains("error") {
                panic!("Failed to compile shader. \nOpenGL Error:\n{}\n", buffer_str);
             }
         }
@@ -504,7 +506,7 @@ fn gl_link_program(shader_program: GLShaderProgramBuffer) {
                 buffer_str.push(buffer_data[i] as char);
             }
 
-            if (info_size > 0 && buffer_str.contains("error")) {
+            if info_size > 0 && buffer_str.contains("error") {
                panic!("Failed to link program. \nOpenGL Error:\n{}\n", buffer_str);
             }
         }
@@ -555,14 +557,14 @@ pub fn gl_del_texture(texture: GLTextureBuffer) {
 pub fn gl_bind_texture(target: GLTextureType, texture: GLTextureBuffer) {
     unsafe {
         gl::BindTexture(target, texture);
-        gl_check;
+        gl_check();
     }
 }
 
 pub fn gl_unbind_texture(target: GLTextureType) {
     unsafe {
         gl::BindTexture(target, 0);
-        gl_check;
+        gl_check();
     }
 }
 
@@ -580,7 +582,7 @@ pub fn gl_gen_mips(target: GLTextureType) {
     }
 }
 
-pub fn gl_tex_image_2D(internal_format: u32, width: i32, height: i32, format: u32, data: *const c_void) {
+pub fn gl_tex_image_2d(internal_format: u32, width: i32, height: i32, format: u32, data: *const c_void) {
     unsafe {
         gl::TexImage2D(gl::TEXTURE_2D, 0, internal_format as i32, width, height, format as i32, 0, gl::UNSIGNED_BYTE, data);
         gl_check();

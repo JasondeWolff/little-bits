@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 #[path = "helpers.rs"] mod helpers;
 use helpers::*;
 
@@ -25,7 +27,7 @@ impl GLTexture2D {
                 _ => gl::RGBA
             };
 
-            gl_tex_image_2D(gl::RGBA, image.dimensions.x, image.dimensions.y, format, image.data as *const c_void);
+            gl_tex_image_2d(gl::RGBA, image.dimensions.x, image.dimensions.y, format, image.data as *const c_void);
             gl_gen_mips(texture.buffer);
         } texture.unbind();
 

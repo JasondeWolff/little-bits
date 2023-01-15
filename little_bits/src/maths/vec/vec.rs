@@ -2,7 +2,6 @@ use std::ops::{Add, Sub, Mul, Div, Neg, AddAssign, SubAssign, MulAssign, DivAssi
 use std::mem;
 use rand::{Rand, Rng};
 use num::{Float};
-use std::f64::consts::PI;
 use std::f64::consts::FRAC_PI_2;
 
 use crate::traits::*;

@@ -1,8 +1,7 @@
-use std::ops::{Add, Sub, Mul, Div, Neg, AddAssign, SubAssign, MulAssign, DivAssign, Index, IndexMut};
+use std::ops::{Mul, AddAssign, MulAssign, Index, IndexMut};
 use std::mem;
 use rand::{Rand, Rng};
 use num::{Float};
-use std::f64::consts::PI;
 
 use crate::traits::*;
 use crate::maths::Matrix4;

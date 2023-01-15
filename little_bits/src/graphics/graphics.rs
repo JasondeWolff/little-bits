@@ -7,7 +7,7 @@ use crate::resources::Model;
 use crate::application::*;
 use crate::app;
 
-use std::{rc::Rc, hash::Hash};
+use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use std::collections::HashMap;
 
@@ -82,7 +82,7 @@ impl Graphics {
     pub fn draw_model(&mut self, model: Rc<Model>) {
         let model_ptr = Rc::as_ptr(&model);
         match self.models.get(&model_ptr) {
-            Some(&ref meshes) => {
+            Some(_) => {
                 // TODO: add model transforms
             },
             None => {

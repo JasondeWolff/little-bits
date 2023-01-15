@@ -137,6 +137,7 @@ pub enum MouseButton
 	Button8 = 7,
 }
 
+#[allow(non_upper_case_globals)]
 impl MouseButton {
 	pub const Left: MouseButton = MouseButton::Button1;
 	pub const Right: MouseButton = MouseButton::Button2;

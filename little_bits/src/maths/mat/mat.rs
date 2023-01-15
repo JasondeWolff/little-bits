@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub, Mul, Div, Neg, AddAssign, SubAssign, MulAssign, DivAssign, Index, IndexMut};
+use std::ops::{Mul, Index, IndexMut};
 use std::mem;
 use rand::{Rand, Rng};
 use num::{Float};
@@ -6,8 +6,6 @@ use num::{Float};
 use crate::traits::*;
 use crate::maths::Quaternion;
 use crate::maths::Vector3;
-
-use core::f32::consts::PI;
 
 macro_rules! t(
     ($v: expr) => (
@@ -184,7 +182,7 @@ impl<T: Float> Matrix4<T> {
         ];
 
         let det = self[0] * elems[0] + self[1] * elems[4] + self[2] * elems[8] + self[3] * elems[12];
-        if (det != t!(0.0))
+        if det != t!(0.0)
         {
             let inv_det = t!(1.0) / det;
             for i in 0..16 {
