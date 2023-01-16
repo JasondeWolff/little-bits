@@ -96,7 +96,7 @@ default_impl!(Vector3, x, y, z);
 new_impl!(Vector3, x, y, z);
 clear_impl!(Vector3, x, y, z);
 rand_impl!(Vector3, x, y, z);
-conversion_impl!(Vector3, 2);
+conversion_impl!(Vector3, 3);
 index_impl!(Vector3);
 
 add_impl!(Vector3, x, y, z);
@@ -151,7 +151,7 @@ default_impl!(Vector4, x, y, z, w);
 new_impl!(Vector4, x, y, z, w);
 clear_impl!(Vector4, x, y, z, w);
 rand_impl!(Vector4, x, y, z, w);
-conversion_impl!(Vector4, 2);
+conversion_impl!(Vector4, 4);
 index_impl!(Vector4);
 
 add_impl!(Vector4, x, y, z, w);

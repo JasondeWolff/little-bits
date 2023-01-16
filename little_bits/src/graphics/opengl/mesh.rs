@@ -27,12 +27,12 @@ impl GLMesh {
         let vbo = GLVBO::new();
         let ebo = GLEBO::new();
 
-        let mut vertices: Vec<GLVertex> = Vec::with_capacity(mesh.positions.len());
-        for i in 0..mesh.positions.len() {
+        let mut vertices: Vec<GLVertex> = Vec::with_capacity(mesh.vertices.len());
+        for i in 0..mesh.vertices.len() {
             vertices.push(GLVertex {
-                position: mesh.positions[i],
-                normal: mesh.normals[i],
-                tex_coord: mesh.tex_coords[i]
+                position: mesh.vertices[i].position,
+                normal: mesh.vertices[i].normal,
+                tex_coord: mesh.vertices[i].tex_coord
             });
         }
         let mut indices: Vec<u32> = mesh.indices.clone();

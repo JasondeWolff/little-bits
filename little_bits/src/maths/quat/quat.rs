@@ -33,7 +33,7 @@ impl<T: Default + Float> Default for Quaternion<T> {
 
 impl<T: Float> Quaternion<T> {
     #[inline]
-    fn new(x: T, y: T, z: T, w: T) -> Quaternion<T> {
+    pub fn new(x: T, y: T, z: T, w: T) -> Quaternion<T> {
         Quaternion {
             x: x,
             y: y,

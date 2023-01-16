@@ -133,7 +133,7 @@ impl Graphics {
         let aspect_ratio: f32 = self.dimensions().x as f32 / self.dimensions().y as f32;
         let proj = Float4x4::perspective(60.0, aspect_ratio, 0.01, 1000.0);
         let view = Float4x4::identity();
-        let model = Float4x4::translation(Float3::new(0.0, 0.0, -150.0)) * /*rotation */ Float4x4::scale(Float3::new(0.3, 0.3, 0.3));
+        let model = Float4x4::translation(Float3::new(0.0, 0.0, -5.0)) * /*rotation */ Float4x4::scale(Float3::new(0.8, 0.8, 0.8));
 
         for (_, meshes) in self.models.iter() {
             for mesh in meshes.iter() {

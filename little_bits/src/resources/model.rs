@@ -8,12 +8,36 @@ pub struct Material {
     pub diffuse_map: Option<Rc<Image>>
 }
 
-pub struct Mesh {
-    pub positions: Vec<Float3>,
-    pub normals: Vec<Float3>,
-    pub tex_coords: Vec<Float2>,
+pub struct Vertex {
+    pub position: Float3,
+    pub normal: Float3,
+    pub tangent: Float4,
+    pub tex_coord: Float2,
+    pub tex_coord_1: Float2,
+    pub color: Float4
+}
 
-    pub indices: Vec<u32>
+impl Default for Vertex {
+    fn default() -> Self {
+        Vertex {
+            position: Float3::default(),
+            normal: Float3::default(),
+            tangent: Float4::default(),
+            tex_coord: Float2::default(),
+            tex_coord_1: Float2::default(),
+            color: Float4::default()
+        }
+    }
+}
+
+pub struct Mesh {
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<u32>,
+
+    pub min: Float3,
+    pub max: Float3,
+
+    pub material_idx: usize
 }
 
 pub struct Model {

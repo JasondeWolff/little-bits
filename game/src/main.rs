@@ -24,7 +24,7 @@ impl Game for Example {
     }
 
     fn start(&mut self) {
-        self.chair_model = Some(app().resources().get_model(String::from("assets/wooden_chair/wooden_chair.fbx")));
+        self.chair_model = Some(app().resources().get_model(String::from("assets/monkey.gltf")));
     }
     
     fn update(&mut self, _: f32) {
