@@ -7,6 +7,8 @@ use crate::resources::Model;
 use crate::application::*;
 use crate::app;
 
+use std::slice;
+use std::mem;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use std::collections::HashMap;
@@ -20,6 +22,7 @@ pub struct Graphics {
     window_events: Receiver<(f64, WindowEvent)>,
 
     models: HashMap<*const Model, Vec<GLMesh>>,
+    model_instances: HashMap<*const Model, Vec<Transform>>,
     shader_program: GLShaderProgram
 }
 
@@ -31,7 +34,7 @@ impl System for Graphics {
         glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
         glfw.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
         
-        let (mut window, events) = glfw.create_window(1280, 720, "Rusterizer", glfw::WindowMode::Windowed)
+        let (mut window, events) = glfw.create_window(1280, 720, "Little Bits", glfw::WindowMode::Windowed)
             .expect("Failed to create GLFW window.");
 
         window.set_all_polling(true);
@@ -54,6 +57,7 @@ impl System for Graphics {
             window: window,
             window_events: events,
             models: HashMap::new(),
+            model_instances: HashMap::new(),
             shader_program: shader_program
         })
     }
@@ -70,6 +74,24 @@ impl System for Graphics {
 }
 
 impl Graphics {
+    pub fn set_title(&mut self, title: &str) {
+        self.window.set_title(title);
+    }
+
+    pub fn set_icon(&mut self, icon: &Image) {
+        assert_eq!(icon.channel_count, 4, "Failed to set icon. (Icon image must contain 4 channels)");
+
+        let pixels: Vec<u8> = unsafe { slice::from_raw_parts(icon.data, (icon.dimensions.x * icon.dimensions.y * icon.channel_count) as usize).to_vec() };
+        let pixels: Vec<u32> = unsafe { mem::transmute(pixels) };
+
+        let image: glfw::PixelImage = glfw::PixelImage {
+            width: icon.dimensions.x as u32,
+            height: icon.dimensions.y as u32,
+            pixels: pixels
+        };
+        self.window.set_icon_from_pixels(vec![image]);
+    }
+
     pub fn dimensions(&self) -> Int2 {
         let (x, y) = self.window.get_size();
         Int2::new(x, y)

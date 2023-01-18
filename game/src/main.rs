@@ -24,6 +24,11 @@ impl Game for Example {
     }
 
     fn start(&mut self) {
+        let app_icon = app().resources().get_image(String::from("assets/icon.png"));
+
+        app().graphics().set_title("Little Bits Example");
+        app().graphics().set_icon(&app_icon);
+
         self.chair_model = Some(app().resources().get_model(String::from("assets/monkey.gltf")));
     }
     
