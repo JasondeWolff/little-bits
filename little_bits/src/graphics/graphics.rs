@@ -13,6 +13,25 @@ use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use std::collections::HashMap;
 
+/*
+Setup:
+ - ImGui
+ - Scene Graph
+ - Materials
+
+Neural Mesh:
+ - Neural network compute shader
+ - Back propagation
+ - Serialize and deserialize result
+
+ Triangle Mesh Preview:
+ - PBR Shading
+ - Basic phong lights
+
+ Multiple Neural Meshes:
+  - BVH builder and traversal
+*/
+
 #[path = "opengl/opengl.rs"] pub mod opengl;
 use opengl::*;
 
