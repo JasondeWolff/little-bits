@@ -8,9 +8,11 @@ use crate::application::*;
 use crate::app;
 use crate::HandleQueue;
 
+use std::borrow::Borrow;
 use std::mem;
 use std::slice;
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::sync::mpsc::Receiver;
 use std::collections::HashMap;
 
@@ -36,6 +38,9 @@ Neural Mesh:
 #[path = "opengl/opengl.rs"] pub mod opengl;
 use opengl::*;
 
+pub mod camera;
+pub use camera::*;
+
 #[derive(Eq, PartialEq, Hash, Clone)]
 pub struct ModelInstance(u64);
 
@@ -43,6 +48,8 @@ pub struct Graphics {
     glfw: Glfw,
     window: Window,
     window_events: Receiver<(f64, WindowEvent)>,
+
+    render_camera: Option<Rc<RefCell<Camera>>>,
 
     dynamic_models: HashMap<*const Model, (Vec<GLMesh>, Vec<Transform>)>,
     dynamic_model_handles: HashMap<ModelInstance, *mut Transform>,
@@ -81,9 +88,10 @@ impl System for Graphics {
             glfw: glfw,
             window: window,
             window_events: events,
+            render_camera: None,
             dynamic_models: HashMap::new(),
             dynamic_model_handles: HashMap::new(),
-            dynamic_model_handle_queue: HandleQueue::new(1000),
+            dynamic_model_handle_queue: HandleQueue::new(10000),
             shader_program: shader_program
         })
     }
@@ -118,6 +126,14 @@ impl Graphics {
         self.window.set_icon_from_pixels(vec![image]);
     }
 
+    pub fn set_cursor_lock(&mut self, locked: bool) {
+        if locked {
+            self.window.set_cursor_mode(glfw::CursorMode::Disabled);
+        } else {
+            self.window.set_cursor_mode(glfw::CursorMode::Normal);
+        }
+    }
+
     pub fn dimensions(&self) -> Int2 {
         let (x, y) = self.window.get_size();
         Int2::new(x, y)
@@ -125,6 +141,15 @@ impl Graphics {
 
     pub fn should_close(&self) -> bool {
         self.window.should_close()
+    }
+
+    pub fn create_camera(&mut self) -> Rc<RefCell<Camera>> {
+        let camera = Rc::new(RefCell::new(Camera::new()));
+        camera
+    }
+
+    pub fn set_render_camera(&mut self, camera: Option<Rc<RefCell<Camera>>>) {
+        self.render_camera = camera;
     }
 
     pub fn create_dynamic_model_instance(&mut self, model: Rc<Model>, transform: Option<Transform>) -> ModelInstance {
@@ -213,15 +238,25 @@ impl Graphics {
         gl_clear_color(Float3::new(1.0, 0.5, 0.32));
         gl_clear();
 
-        let aspect_ratio: f32 = self.dimensions().x as f32 / self.dimensions().y as f32;
-        let proj = Float4x4::perspective(60.0, aspect_ratio, 0.01, 1000.0);
-        let view = Float4x4::identity();
+        let (proj, view) = match self.render_camera.as_mut() {
+            Some(camera) => {
+                let mut camera = camera.borrow_mut();
+                (camera.get_proj_matrix(), camera.get_view_matrix())
+            },
+            None => {
+                let aspect_ratio: f32 = self.dimensions().x as f32 / self.dimensions().y as f32;
+                let proj = Float4x4::perspective(60.0, aspect_ratio, 0.01, 1000.0);
+                let view = Float4x4::identity();
+
+                (proj, view)
+            }
+        };
 
         for (_, models) in self.dynamic_models.iter_mut() {
             for model_transform in models.1.iter_mut() {
                 for mesh in models.0.iter() {
                     self.shader_program.bind(); {
-                        self.shader_program.set_float4x4(&String::from("model"), model_transform.get_model_matrix());
+                        self.shader_program.set_float4x4(&String::from("model"), model_transform.get_matrix());
                         self.shader_program.set_float4x4(&String::from("projection"), proj);
                         self.shader_program.set_float4x4(&String::from("view"), view);
                     

@@ -23,7 +23,7 @@ impl<T: Float + Default> Transform3D<T> {
     pub fn new() -> Self {
         Transform3D {
             translation: Vector3::default(),
-            rotation: Quaternion::default(),
+            rotation: Quaternion::identity(),
             scale: Vector3::new(t!(1.0), t!(1.0), t!(1.0)),
             model: Matrix4::identity(),
             model_dirty: true
@@ -57,7 +57,15 @@ impl<T: Float + Default> Transform3D<T> {
         self.model_dirty = true;
     }
 
-    pub fn get_model_matrix(&mut self) -> Matrix4<T> {
+    pub fn translate(&mut self, translation: Vector3<T>) {
+        self.set_translation(self.translation + translation);
+    }
+
+    pub fn scale(&mut self, scale: Vector3<T>) {
+        self.set_scale(self.scale + scale);
+    }
+
+    pub fn get_matrix(&mut self) -> Matrix4<T> {
         if self.model_dirty {
             self.model = Matrix4::translation(self.translation) * Matrix4::from(self.rotation) * Matrix4::scale(self.scale);
             self.model_dirty = false;

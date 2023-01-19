@@ -7,6 +7,12 @@ use crate::traits::*;
 use crate::maths::Matrix4;
 use crate::maths::Vector3;
 
+macro_rules! t(
+    ($v: expr) => (
+        T::from($v).unwrap()
+    )
+);
+
 #[derive(Eq, PartialEq, Clone, Hash, Debug, Copy)]
 pub struct Quaternion<T: Float> {
     pub x: T,
@@ -39,6 +45,18 @@ impl<T: Float> Quaternion<T> {
             y: y,
             z: z,
             w: w
+        }
+    }
+}
+
+impl<T: Float> Quaternion<T> {
+    #[inline]
+    pub fn identity() -> Quaternion<T> {
+        Quaternion {
+            x: t!(0.0),
+            y: t!(0.0),
+            z: t!(0.0),
+            w: t!(1.0)
         }
     }
 }
@@ -111,12 +129,6 @@ impl<'a, T: Clone + Float> From<&'a [T; 4]> for Quaternion<T> {
         vref.clone()
     }
 }
-
-macro_rules! t(
-    ($v: expr) => (
-        T::from($v).unwrap()
-    )
-);
 
 impl<'a, T: Float + Default> From<Matrix4<T>> for Quaternion<T> {
     fn from(mat4: Matrix4<T>) -> Quaternion<T> {
