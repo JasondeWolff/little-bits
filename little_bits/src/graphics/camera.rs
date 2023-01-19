@@ -3,6 +3,7 @@ use crate::maths::Quat;
 use crate::maths::Float4x4;
 use crate::app;
 
+#[derive(Clone)]
 pub struct Camera {
     translation: Float3,
     rotation: Quat,

@@ -7,8 +7,8 @@ use crate::resources::Model;
 use crate::application::*;
 use crate::app;
 use crate::HandleQueue;
+use crate::Shared;
 
-use std::borrow::Borrow;
 use std::mem;
 use std::slice;
 use std::rc::Rc;
@@ -49,7 +49,7 @@ pub struct Graphics {
     window: Window,
     window_events: Receiver<(f64, WindowEvent)>,
 
-    render_camera: Option<Rc<RefCell<Camera>>>,
+    render_camera: Shared<Camera>,
 
     dynamic_models: HashMap<*const Model, (Vec<GLMesh>, Vec<Transform>)>,
     dynamic_model_handles: HashMap<ModelInstance, *mut Transform>,
@@ -88,7 +88,7 @@ impl System for Graphics {
             glfw: glfw,
             window: window,
             window_events: events,
-            render_camera: None,
+            render_camera: Shared::empty(),
             dynamic_models: HashMap::new(),
             dynamic_model_handles: HashMap::new(),
             dynamic_model_handle_queue: HandleQueue::new(10000),
@@ -143,12 +143,12 @@ impl Graphics {
         self.window.should_close()
     }
 
-    pub fn create_camera(&mut self) -> Rc<RefCell<Camera>> {
-        let camera = Rc::new(RefCell::new(Camera::new()));
+    pub fn create_camera(&mut self) -> Shared<Camera> {
+        let camera = Shared::new(Camera::new());
         camera
     }
 
-    pub fn set_render_camera(&mut self, camera: Option<Rc<RefCell<Camera>>>) {
+    pub fn set_render_camera(&mut self, camera: Shared<Camera>) {
         self.render_camera = camera;
     }
 
@@ -238,9 +238,8 @@ impl Graphics {
         gl_clear_color(Float3::new(1.0, 0.5, 0.32));
         gl_clear();
 
-        let (proj, view) = match self.render_camera.as_mut() {
-            Some(camera) => {
-                let mut camera = camera.borrow_mut();
+        let (proj, view) = match self.render_camera.try_as_mut() {
+            Some(mut camera) => {
                 (camera.get_proj_matrix(), camera.get_view_matrix())
             },
             None => {

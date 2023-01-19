@@ -3,11 +3,8 @@
 extern crate little_bits;
 use little_bits::*;
 
-use std::borrow::BorrowMut;
 use std::env;
 use std::rc::Rc;
-use std::cell::RefCell;
-use std::cell::RefMut;
 
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
@@ -18,7 +15,7 @@ fn main() {
 struct Example {
     model: Option<Rc<Model>>,
     instance: Option<ModelInstance>,
-    camera: Option<Rc<RefCell<Camera>>>
+    camera: Shared<Camera>
 }
 
 impl Game for Example {
@@ -26,7 +23,7 @@ impl Game for Example {
         Box::new(Example {
             model: None,
             instance: None,
-            camera: None
+            camera: Shared::empty()
         })
     }
 
@@ -37,7 +34,7 @@ impl Game for Example {
         app().graphics().set_title("Little Bits Example");
         app().graphics().set_icon(&app_icon);
 
-        self.camera = Some(app().graphics().create_camera());
+        self.camera = app().graphics().create_camera();
         app().graphics().set_render_camera(self.camera.clone());
 
         self.model = Some(app().resources().get_model(String::from("assets/test_models/DamagedHelmet/glTF/DamagedHelmet.gltf")));
@@ -60,8 +57,7 @@ impl Game for Example {
         }
         translation = translation.normalized() * delta_time;
 
-        let mut camera = self.camera.as_ref().unwrap().as_ref().borrow_mut();
-        camera.translate(translation);
+        self.camera.as_mut().translate(translation);
     }
     
     fn stop(&mut self) {
