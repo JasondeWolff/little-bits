@@ -6,13 +6,10 @@ use crate::system::*;
 use crate::resources::Model;
 use crate::application::*;
 use crate::app;
-use crate::HandleQueue;
 use crate::Shared;
 
 use std::mem;
 use std::slice;
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::sync::mpsc::Receiver;
 use std::collections::HashMap;
 
@@ -41,8 +38,11 @@ use opengl::*;
 pub mod camera;
 pub use camera::*;
 
-#[derive(Eq, PartialEq, Hash, Clone)]
-pub struct ModelInstance(u64);
+#[derive(PartialEq, Clone, Debug, Copy)]
+pub struct ModelInstance {
+    pub transform: Transform
+    // Material etc
+}
 
 pub struct Graphics {
     glfw: Glfw,
@@ -51,9 +51,7 @@ pub struct Graphics {
 
     render_camera: Shared<Camera>,
 
-    dynamic_models: HashMap<*const Model, (Vec<GLMesh>, Vec<Transform>)>,
-    dynamic_model_handles: HashMap<ModelInstance, *mut Transform>,
-    dynamic_model_handle_queue: HandleQueue,
+    dynamic_models: HashMap<*const Model, (Vec<GLMesh>, Vec<Shared<ModelInstance>>)>,
 
     shader_program: GLShaderProgram
 }
@@ -78,9 +76,9 @@ impl System for Graphics {
         gl_cull(gl::BACK);
 
         let vertex_shader_src = app().resources().get_text(String::from("assets/shaders/vert.glsl"));
-        let vertex_shader = GLShader::new(GLShaderType::VERTEX, &vertex_shader_src);
+        let vertex_shader = GLShader::new(GLShaderType::VERTEX, &vertex_shader_src.as_ref());
         let fragment_shader_src = app().resources().get_text(String::from("assets/shaders/frag.glsl"));
-        let fragment_shader = GLShader::new(GLShaderType::FRAGMENT, &fragment_shader_src);
+        let fragment_shader = GLShader::new(GLShaderType::FRAGMENT, &fragment_shader_src.as_ref());
 
         let shader_program = GLShaderProgram::new(&vertex_shader, &fragment_shader);
 
@@ -90,8 +88,6 @@ impl System for Graphics {
             window_events: events,
             render_camera: Shared::empty(),
             dynamic_models: HashMap::new(),
-            dynamic_model_handles: HashMap::new(),
-            dynamic_model_handle_queue: HandleQueue::new(10000),
             shader_program: shader_program
         })
     }
@@ -112,7 +108,8 @@ impl Graphics {
         self.window.set_title(title);
     }
 
-    pub fn set_icon(&mut self, icon: &Image) {
+    pub fn set_icon(&mut self, icon: Shared<Image>) {
+        let icon = icon.as_ref();
         assert_eq!(icon.channel_count, 4, "Failed to set icon. (Icon image must contain 4 channels)");
 
         let pixels: Vec<u8> = unsafe { slice::from_raw_parts(icon.data, (icon.dimensions.x * icon.dimensions.y * icon.channel_count) as usize).to_vec() };
@@ -152,56 +149,33 @@ impl Graphics {
         self.render_camera = camera;
     }
 
-    pub fn create_dynamic_model_instance(&mut self, model: Rc<Model>, transform: Option<Transform>) -> ModelInstance {
-        let model_ptr = Rc::as_ptr(&model);
+    pub fn create_dynamic_model_instance(&mut self, model: Shared<Model>, transform: Option<Transform>) -> Shared<ModelInstance> {
+        let model_ptr = model.as_ptr();
 
         let transform = match transform {
             Some(transform) => transform,
             None => Transform::new()
         };
 
-        let handle = ModelInstance(self.dynamic_model_handle_queue.create());
+        let model_instance = Shared::new(ModelInstance {
+            transform: transform
+        });
 
         match self.dynamic_models.get_mut(&model_ptr) {
             Some(models) => {
-                models.1.push(transform);
+                models.1.push(model_instance.clone());
             },
             None => {
                 let mut meshes: Vec<GLMesh> = Vec::new();
-                for mesh in model.meshes.iter() {
+                for mesh in model.as_ref().meshes.iter() {
                     meshes.push(GLMesh::new(mesh));
                 }
 
-                self.dynamic_models.insert(model_ptr, (meshes, vec![transform]));
+                self.dynamic_models.insert(model_ptr, (meshes, vec![model_instance.clone()]));
             }
         }
 
-        match self.dynamic_models.get_mut(&model_ptr) {
-            Some(models) => {
-                let transform_ptr = models.1.last_mut().unwrap() as *mut Transform;
-                self.dynamic_model_handles.insert(handle.clone(), transform_ptr);
-            },
-            None => panic!("Failed to create dynamic model instance.")
-        }
-
-        handle
-    }
-
-    pub fn get_dynamic_model_transform(&mut self, model_instance: ModelInstance) -> &mut Transform {
-        match self.dynamic_model_handles.get(&model_instance) {
-            Some(transform) => {
-                unsafe { (*transform).as_mut().unwrap() }
-            },
-            None => panic!("Failed to get dynamic model transform. (Invalid model instance)")
-        }
-    }
-
-    pub fn destroy_dynamic_models(&mut self) {
-        for (handle, _) in self.dynamic_model_handles.iter() {
-            self.dynamic_model_handle_queue.destroy(handle.0);
-        }
-        self.dynamic_models.clear();
-        self.dynamic_model_handles.clear();
+        model_instance
     }
 }
 
@@ -255,7 +229,7 @@ impl Graphics {
             for model_transform in models.1.iter_mut() {
                 for mesh in models.0.iter() {
                     self.shader_program.bind(); {
-                        self.shader_program.set_float4x4(&String::from("model"), model_transform.get_matrix());
+                        self.shader_program.set_float4x4(&String::from("model"), model_transform.as_mut().transform.get_matrix());
                         self.shader_program.set_float4x4(&String::from("projection"), proj);
                         self.shader_program.set_float4x4(&String::from("view"), view);
                     
@@ -268,7 +242,29 @@ impl Graphics {
         self.window.swap_buffers();
     }
 
+    
+
     fn post_render(&mut self) {
-        
+        for (_, models) in self.dynamic_models.iter_mut() {
+            let mut indices = Vec::new();
+
+            for (i, model_transform) in models.1.iter().rev().enumerate() {
+                if model_transform.strong_count() == 1 {
+                    indices.push(i);
+                }
+            }
+
+            vec_remove_multiple(&mut models.1, &mut indices);
+        }
+    }
+}
+
+fn vec_remove_multiple<T>(vec: &mut Vec<T>, indices: &mut Vec<usize>) {
+    indices.sort();    
+
+    let mut j: usize = 0;
+    for i in indices.iter() {
+        vec.remove(i - j);
+        j += 1;
     }
 }

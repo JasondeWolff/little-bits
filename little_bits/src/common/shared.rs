@@ -26,12 +26,20 @@ impl<T> Shared<T> {
         }
     }
 
+    pub fn strong_count(&self) -> usize {
+        Rc::strong_count(self.value.as_ref().unwrap())
+    }
+
     pub fn as_ref(&self) -> Ref<'_, T> {
         self.value.as_ref().unwrap().as_ref().borrow()
     }
 
     pub fn as_mut(&self) -> RefMut<'_, T> {
         self.value.as_ref().unwrap().as_ref().borrow_mut()
+    }
+
+    pub fn as_ptr(&self) -> *const T {
+        RefCell::as_ptr(self.value.as_ref().unwrap())
     }
 
     pub fn try_as_ref(&self) -> Option<Ref<'_, T>> {

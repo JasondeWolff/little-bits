@@ -4,10 +4,12 @@ use crate::maths::*;
 
 use crate::resources::Image;
 
+#[derive(Clone)]
 pub struct Material {
     pub diffuse_map: Option<Rc<Image>>
 }
 
+#[derive(Clone)]
 pub struct Vertex {
     pub position: Float3,
     pub normal: Float3,
@@ -30,6 +32,7 @@ impl Default for Vertex {
     }
 }
 
+#[derive(Clone)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
@@ -40,6 +43,7 @@ pub struct Mesh {
     pub material_idx: usize
 }
 
+#[derive(Clone)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>

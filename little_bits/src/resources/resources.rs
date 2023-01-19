@@ -1,12 +1,12 @@
 extern crate gltf;
 extern crate stb_image;
 
-use std::rc::Rc;
 use std::fs;
 use std::ffi::CString;
 
 use crate::system::*;
 use crate::maths::*;
+use crate::Shared;
 
 #[path = "resource_manager.rs"] pub mod resource_manager;
 pub use resource_manager::*;
@@ -43,11 +43,11 @@ impl System for Resources {
 }
 
 impl Resources {
-    fn process_node(node: &gltf::Node, buffers: &Vec<gltf::buffer::Data>, images: &Vec<gltf::image::Data>, meshes: &mut Vec<Mesh>, materials: &mut Vec<Material>) {
+    fn process_node(node: &gltf::Node, buffers: &Vec<gltf::buffer::Data>, _images: &Vec<gltf::image::Data>, meshes: &mut Vec<Mesh>, _materials: &mut Vec<Material>) {
         let (translation, rotation, scale) = node.transform().decomposed();
-        let translation = Float3::new(translation[0], translation[1], translation[2]);
-        let rotation = Quaternion::new(rotation[3], rotation[0], rotation[1], rotation[2]); // Correct order?!?!?!?
-        let scale = Float3::new(scale[0], scale[1], scale[2]);
+        let _translation = Float3::new(translation[0], translation[1], translation[2]);
+        let _rotation = Quaternion::new(rotation[3], rotation[0], rotation[1], rotation[2]); // Correct order?!?!?!?
+        let _scale = Float3::new(scale[0], scale[1], scale[2]);
 
         match node.mesh() {
             Some(mesh) => {
@@ -130,7 +130,7 @@ impl Resources {
         };
     }
 
-    pub fn get_model(&mut self, asset_path: String) -> Rc<Model> {
+    pub fn get_model(&mut self, asset_path: String) -> Shared<Model> {
         match self.model_manager.get(&asset_path) {
             Some(resource) => resource,
             None => {
@@ -142,7 +142,7 @@ impl Resources {
                     Self::process_node(document.nodes().next().as_ref().unwrap(), &buffers, &images, &mut meshes, &mut materials);
                 }
 
-                let resource = Rc::new(Model {
+                let resource = Shared::new(Model {
                     meshes: meshes,
                     materials: materials
                 });
@@ -153,12 +153,12 @@ impl Resources {
         }
     }
 
-    pub fn get_text(&mut self, asset_path: String) -> Rc<String> {
+    pub fn get_text(&mut self, asset_path: String) -> Shared<String> {
         match self.text_manager.get(&asset_path) {
             Some(resource) => resource,
             None => {
                 let contents = fs::read_to_string(asset_path.clone()).expect("Failed to read text file.");
-                let resource = Rc::new(contents);
+                let resource = Shared::new(contents);
 
                 self.text_manager.insert(resource.clone(), asset_path);
                 resource
@@ -166,7 +166,7 @@ impl Resources {
         }
     }
 
-    pub fn get_image(&mut self, asset_path: String) -> Rc<Image> {
+    pub fn get_image(&mut self, asset_path: String) -> Shared<Image> {
         match self.image_manager.get(&asset_path) {
             Some(resource) => resource,
             None => {
@@ -188,7 +188,7 @@ impl Resources {
 
                     assert!(!data.is_null(), "Failed to read image.");
 
-                    let resource = Rc::new(Image {
+                    let resource = Shared::new(Image {
                         data: data,
                         dimensions: Int2::new(width, height),
                         channel_count: channels

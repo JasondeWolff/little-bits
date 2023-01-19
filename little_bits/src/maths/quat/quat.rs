@@ -61,6 +61,21 @@ impl<T: Float> Quaternion<T> {
     }
 }
 
+impl<T: Float> Quaternion<T> {
+    #[inline]
+    pub fn axis_angle(axis: Vector3<T>, angle: T) -> Quaternion<T> {
+        let rangle = angle.to_radians();
+        let sha = (rangle * t!(0.5)).sin();
+
+        Quaternion {
+            x: axis.x * sha,
+            y: axis.y * sha,
+            z: axis.z * sha,
+            w: (rangle * t!(0.5)).cos()
+        }
+    }
+}
+
 /*****************************************************************************
 *                               MODIFIERS
 ******************************************************************************/
@@ -177,22 +192,31 @@ impl<'a, T: Float + Default> From<Matrix4<T>> for Quaternion<T> {
     }
 }
 
+// impl<'a, T: Float + Default> From<Vector3<T>> for Quaternion<T> {
+//     fn from(euler: Vector3<T>) -> Quaternion<T> {
+//         let half_euler = euler * t!(0.5);
+//         let cr = (half_euler.x.to_radians()).cos();
+//         let sr = (half_euler.x.to_radians()).sin();
+//         let cy = (half_euler.z.to_radians()).cos();
+//         let sy = (half_euler.z.to_radians()).sin();
+//         let cp = (half_euler.y.to_radians()).cos();
+//         let sp = (half_euler.y.to_radians()).sin();
+
+//         Quaternion {
+//             x: sr * cp * cy - cr * sp * sy,
+//             y: cr * sp * cy + sr * cp * sy,
+//             z: cr * cp * sy - sr * sp * cy,
+//             w: cr * cp * cy + sr * sp * sy
+//         }
+//     }
+// }
+
 impl<'a, T: Float + Default> From<Vector3<T>> for Quaternion<T> {
     fn from(euler: Vector3<T>) -> Quaternion<T> {
-        let half_euler = euler * t!(0.5);
-        let cr = (half_euler.x.to_radians()).cos();
-        let sr = (half_euler.x.to_radians()).sin();
-        let cy = (half_euler.z.to_radians()).cos();
-        let sy = (half_euler.z.to_radians()).sin();
-        let cp = (half_euler.y.to_radians()).cos();
-        let sp = (half_euler.y.to_radians()).sin();
-
-        Quaternion {
-            x: sr * cp * cy - cr * sp * sy,
-            y: cr * sp * cy + sr * cp * sy,
-            z: cr * cp * sy - sr * sp * cy,
-            w: cr * cp * cy + sr * sp * sy
-        }
+        let qx = Quaternion::axis_angle(Vector3::right(), euler.x);
+        let qy = Quaternion::axis_angle(Vector3::up(), euler.y);
+        let qz = Quaternion::axis_angle(Vector3::forward(), euler.z);
+        qx * qy * qz
     }
 }
 

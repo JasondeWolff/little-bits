@@ -14,9 +14,6 @@ pub use system::*;
 #[path = "application.rs"] pub mod application;
 pub use application::*;
 
-#[path = "common/handle_queue.rs"] pub mod handle_queue;
-pub use handle_queue::*;
-
 #[path = "common/shared.rs"] pub mod shared;
 pub use shared::*;
 

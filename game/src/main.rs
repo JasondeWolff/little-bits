@@ -4,7 +4,6 @@ extern crate little_bits;
 use little_bits::*;
 
 use std::env;
-use std::rc::Rc;
 
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
@@ -13,16 +12,16 @@ fn main() {
 }
 
 struct Example {
-    model: Option<Rc<Model>>,
-    instance: Option<ModelInstance>,
+    model: Shared<Model>,
+    instance: Shared<ModelInstance>,
     camera: Shared<Camera>
 }
 
 impl Game for Example {
     fn new() -> Box<Example> {
         Box::new(Example {
-            model: None,
-            instance: None,
+            model: Shared::empty(),
+            instance: Shared::empty(),
             camera: Shared::empty()
         })
     }
@@ -32,13 +31,16 @@ impl Game for Example {
 
         app().graphics().set_cursor_lock(true);
         app().graphics().set_title("Little Bits Example");
-        app().graphics().set_icon(&app_icon);
+        app().graphics().set_icon(app_icon);
 
         self.camera = app().graphics().create_camera();
         app().graphics().set_render_camera(self.camera.clone());
 
-        self.model = Some(app().resources().get_model(String::from("assets/test_models/DamagedHelmet/glTF/DamagedHelmet.gltf")));
-        self.instance = Some(app().graphics().create_dynamic_model_instance(self.model.as_ref().unwrap().clone(), None));
+        self.model = app().resources().get_model(String::from("assets/test_models/DamagedHelmet/glTF/DamagedHelmet.gltf"));
+        self.instance = app().graphics().create_dynamic_model_instance(self.model.clone(), None);
+
+        let rotation = Quaternion::from(Float3::new(-90.0, 0.0, 0.0));
+        self.instance.as_mut().transform.set_rotation(rotation);
     }
     
     fn update(&mut self, delta_time: f32) {
@@ -58,6 +60,9 @@ impl Game for Example {
         translation = translation.normalized() * delta_time;
 
         self.camera.as_mut().translate(translation);
+
+        let rotation = Quaternion::from(Float3::new(-90.0, app().time() * 10.0, 0.0));
+        self.instance.as_mut().transform.set_rotation(rotation);
     }
     
     fn stop(&mut self) {

@@ -146,6 +146,20 @@ impl<'a, T: Float + Default> From<Quaternion<T>> for Vector3<T> {
     }
 }
 
+impl <T: Float> Vector3<T> {
+    pub fn up() -> Vector3<T> {
+        Vector3::new(t!(0.0), t!(1.0), t!(0.0))
+    }
+
+    pub fn right() -> Vector3<T> {
+        Vector3::new(t!(1.0), t!(0.0), t!(0.0))
+    }
+
+    pub fn forward() -> Vector3<T> {
+        Vector3::new(t!(0.0), t!(0.0), t!(1.0))
+    }
+}
+
 // Vector4
 default_impl!(Vector4, x, y, z, w);
 new_impl!(Vector4, x, y, z, w);

@@ -1,11 +1,11 @@
-use std::rc::Rc;
 use std::collections::HashMap;
 
 use crate::app;
+use crate::Shared;
 
-pub struct ResourceManager<T> {
-    resources: Vec<(Rc<T>, String)>,
-    asset_paths: HashMap<String, Rc<T>>,
+pub struct ResourceManager<T: Clone> {
+    resources: Vec<(Shared<T>, String)>,
+    asset_paths: HashMap<String, Shared<T>>,
     kill_times: HashMap<*const T, f32>,
 
     pub kill_time: f32
@@ -21,7 +21,7 @@ fn vec_remove_multiple<T>(vec: &mut Vec<T>, indices: &mut Vec<usize>) {
     }
 }
 
-impl<T> ResourceManager<T> {
+impl<T: Clone> ResourceManager<T> {
     pub fn new(kill_time: f32) -> Self {
         ResourceManager {
             resources: Vec::new(),
@@ -35,9 +35,9 @@ impl<T> ResourceManager<T> {
         let mut resources_to_remove: Vec<(usize, String)> = Vec::new();
 
         for i in 0..self.resources.len() {
-            let resource_ptr = Rc::as_ptr(&self.resources[i].0);
+            let resource_ptr = self.resources[i].0.as_ptr();
 
-            let use_count = Rc::strong_count(&self.resources[i].0);
+            let use_count = self.resources[i].0.strong_count();
             if use_count <= 2 {
                 match self.kill_times.get(&resource_ptr) {
                     Some(start_time) => {
@@ -71,11 +71,11 @@ impl<T> ResourceManager<T> {
         }
     }
 
-    pub fn get(&self, asset_path: &String) -> Option<Rc<T>> {
+    pub fn get(&self, asset_path: &String) -> Option<Shared<T>> {
         self.asset_paths.get(asset_path).cloned()
     }
 
-    pub fn insert(&mut self, resource: Rc<T>, asset_path: String) {
+    pub fn insert(&mut self, resource: Shared<T>, asset_path: String) {
         self.resources.push((resource.clone(), asset_path.clone()));
         self.asset_paths.insert(asset_path, resource);
     }

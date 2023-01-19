@@ -1,5 +1,6 @@
 use crate::maths::*;
 
+#[derive(Clone)]
 pub struct Image {
     pub data: *mut u8,
     pub dimensions: Int2,
