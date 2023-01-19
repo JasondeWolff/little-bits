@@ -6,9 +6,10 @@ use crate::system::*;
 use crate::resources::Model;
 use crate::application::*;
 use crate::app;
+use crate::HandleQueue;
 
-use std::slice;
 use std::mem;
+use std::slice;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use std::collections::HashMap;
@@ -35,13 +36,18 @@ Neural Mesh:
 #[path = "opengl/opengl.rs"] pub mod opengl;
 use opengl::*;
 
+#[derive(Eq, PartialEq, Hash, Clone)]
+pub struct ModelInstance(u64);
+
 pub struct Graphics {
     glfw: Glfw,
     window: Window,
     window_events: Receiver<(f64, WindowEvent)>,
 
-    models: HashMap<*const Model, Vec<GLMesh>>,
-    model_instances: HashMap<*const Model, Vec<Transform>>,
+    dynamic_models: HashMap<*const Model, (Vec<GLMesh>, Vec<Transform>)>,
+    dynamic_model_handles: HashMap<ModelInstance, *mut Transform>,
+    dynamic_model_handle_queue: HandleQueue,
+
     shader_program: GLShaderProgram
 }
 
@@ -75,8 +81,9 @@ impl System for Graphics {
             glfw: glfw,
             window: window,
             window_events: events,
-            models: HashMap::new(),
-            model_instances: HashMap::new(),
+            dynamic_models: HashMap::new(),
+            dynamic_model_handles: HashMap::new(),
+            dynamic_model_handle_queue: HandleQueue::new(1000),
             shader_program: shader_program
         })
     }
@@ -120,11 +127,19 @@ impl Graphics {
         self.window.should_close()
     }
 
-    pub fn draw_model(&mut self, model: Rc<Model>) {
+    pub fn create_dynamic_model_instance(&mut self, model: Rc<Model>, transform: Option<Transform>) -> ModelInstance {
         let model_ptr = Rc::as_ptr(&model);
-        match self.models.get(&model_ptr) {
-            Some(_) => {
-                // TODO: add model transforms
+
+        let transform = match transform {
+            Some(transform) => transform,
+            None => Transform::new()
+        };
+
+        let handle = ModelInstance(self.dynamic_model_handle_queue.create());
+
+        match self.dynamic_models.get_mut(&model_ptr) {
+            Some(models) => {
+                models.1.push(transform);
             },
             None => {
                 let mut meshes: Vec<GLMesh> = Vec::new();
@@ -132,9 +147,36 @@ impl Graphics {
                     meshes.push(GLMesh::new(mesh));
                 }
 
-                self.models.insert(model_ptr, meshes);
+                self.dynamic_models.insert(model_ptr, (meshes, vec![transform]));
             }
         }
+
+        match self.dynamic_models.get_mut(&model_ptr) {
+            Some(models) => {
+                let transform_ptr = models.1.last_mut().unwrap() as *mut Transform;
+                self.dynamic_model_handles.insert(handle.clone(), transform_ptr);
+            },
+            None => panic!("Failed to create dynamic model instance.")
+        }
+
+        handle
+    }
+
+    pub fn get_dynamic_model_transform(&mut self, model_instance: ModelInstance) -> &mut Transform {
+        match self.dynamic_model_handles.get(&model_instance) {
+            Some(transform) => {
+                unsafe { (*transform).as_mut().unwrap() }
+            },
+            None => panic!("Failed to get dynamic model transform. (Invalid model instance)")
+        }
+    }
+
+    pub fn destroy_dynamic_models(&mut self) {
+        for (handle, _) in self.dynamic_model_handles.iter() {
+            self.dynamic_model_handle_queue.destroy(handle.0);
+        }
+        self.dynamic_models.clear();
+        self.dynamic_model_handles.clear();
     }
 }
 
@@ -174,17 +216,18 @@ impl Graphics {
         let aspect_ratio: f32 = self.dimensions().x as f32 / self.dimensions().y as f32;
         let proj = Float4x4::perspective(60.0, aspect_ratio, 0.01, 1000.0);
         let view = Float4x4::identity();
-        let model = Float4x4::translation(Float3::new(0.0, 0.0, -5.0)) * /*rotation */ Float4x4::scale(Float3::new(0.8, 0.8, 0.8));
 
-        for (_, meshes) in self.models.iter() {
-            for mesh in meshes.iter() {
-                self.shader_program.bind(); {
-                    self.shader_program.set_float4x4(&String::from("model"), model);
-                    self.shader_program.set_float4x4(&String::from("projection"), proj);
-                    self.shader_program.set_float4x4(&String::from("view"), view);
-                
-                    mesh.draw();
-                } self.shader_program.unbind();
+        for (_, models) in self.dynamic_models.iter_mut() {
+            for model_transform in models.1.iter_mut() {
+                for mesh in models.0.iter() {
+                    self.shader_program.bind(); {
+                        self.shader_program.set_float4x4(&String::from("model"), model_transform.get_model_matrix());
+                        self.shader_program.set_float4x4(&String::from("projection"), proj);
+                        self.shader_program.set_float4x4(&String::from("view"), view);
+                    
+                        mesh.draw();
+                    } self.shader_program.unbind();
+                }
             }
         }
 
@@ -192,6 +235,6 @@ impl Graphics {
     }
 
     fn post_render(&mut self) {
-        self.models.clear();
+        
     }
 }

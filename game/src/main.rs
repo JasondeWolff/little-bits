@@ -13,13 +13,15 @@ fn main() {
 }
 
 struct Example {
-    chair_model: Option<Rc<Model>>
+    model: Option<Rc<Model>>,
+    instance: Option<ModelInstance>
 }
 
 impl Game for Example {
     fn new() -> Box<Example> {
         Box::new(Example {
-            chair_model: None
+            model: None,
+            instance: None
         })
     }
 
@@ -29,12 +31,17 @@ impl Game for Example {
         app().graphics().set_title("Little Bits Example");
         app().graphics().set_icon(&app_icon);
 
-        self.chair_model = Some(app().resources().get_model(String::from("assets/monkey.gltf")));
+        self.model = Some(app().resources().get_model(String::from("assets/test_models/DamagedHelmet/glTF/DamagedHelmet.gltf")));
+        self.instance = Some(app().graphics().create_dynamic_model_instance(self.model.as_ref().unwrap().clone(), None));
     }
     
     fn update(&mut self, _: f32) {
-        if !app().input().mouse_button(MouseButton::Left) {
-            app().graphics().draw_model(self.chair_model.as_ref().unwrap().clone());
+        if app().input().mouse_button_down(MouseButton::Left) {
+            let transform = app().graphics().get_dynamic_model_transform(self.instance.as_ref().unwrap().clone());
+            transform.set_translation(transform.get_translation() + Float3::new(0.0, 0.0, -1.0));
+        }
+        if app().input().key_down(KeyCode::Space) {
+            app().graphics().destroy_dynamic_models();
         }
     }
     
