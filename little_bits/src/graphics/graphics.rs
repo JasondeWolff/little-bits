@@ -32,6 +32,8 @@ Neural Mesh:
   - BVH builder and traversal
 */
 
+pub extern crate imgui;
+
 #[path = "opengl/opengl.rs"] pub mod opengl;
 use opengl::*;
 
@@ -49,10 +51,10 @@ pub struct Graphics {
     window: Window,
     window_events: Receiver<(f64, WindowEvent)>,
 
+    pub(crate) imgui: ImGui,
+
     render_camera: Shared<Camera>,
-
     dynamic_models: HashMap<*const Model, (Vec<GLMesh>, Vec<Shared<ModelInstance>>)>,
-
     shader_program: GLShaderProgram
 }
 
@@ -60,11 +62,13 @@ impl System for Graphics {
     fn init() -> Box<Self> {
         let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
 
+        let default_dimensions = Int2::new(1280, 720);
+
         glfw.window_hint(glfw::WindowHint::ContextVersion(4, 1));
         glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
         glfw.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
         
-        let (mut window, events) = glfw.create_window(1280, 720, "Little Bits", glfw::WindowMode::Windowed)
+        let (mut window, events) = glfw.create_window(default_dimensions.x as u32, default_dimensions.y as u32, "Little Bits", glfw::WindowMode::Windowed)
             .expect("Failed to create GLFW window.");
 
         window.set_all_polling(true);
@@ -82,10 +86,15 @@ impl System for Graphics {
 
         let shader_program = GLShaderProgram::new(&vertex_shader, &fragment_shader);
 
+        let mut imgui = ImGui::new();
+        imgui.resize(default_dimensions);
+        imgui.new_frame();
+
         Box::new(Graphics {
             glfw: glfw,
             window: window,
             window_events: events,
+            imgui: imgui,
             render_camera: Shared::empty(),
             dynamic_models: HashMap::new(),
             shader_program: shader_program
@@ -138,6 +147,10 @@ impl Graphics {
 
     pub fn should_close(&self) -> bool {
         self.window.should_close()
+    }
+
+    pub fn debug_ui(&mut self) -> &mut DebugUI {
+        self.imgui.ui()
     }
 
     pub fn create_camera(&mut self) -> Shared<Camera> {
@@ -198,14 +211,15 @@ impl Graphics {
                 app().input().set_mouse_position(Float2::new(x as f32, y as f32));
             }
             glfw::WindowEvent::FramebufferSize(width, height) => {
-                Graphics::resize(width, height);
+                app().graphics().resize(Int2::new(width, height));
             }
             _ => {}
         }
     }
 
-    fn resize(width: i32, height: i32) {
-        gl_viewport(Int2::new(width, height));
+    fn resize(&mut self, dimensions: Int2) {
+        gl_viewport(dimensions);
+        self.imgui.resize(dimensions);
     }
 
     fn render(&mut self) {
@@ -239,10 +253,10 @@ impl Graphics {
             }
         }
 
+        self.imgui.render();
+        self.imgui.new_frame();
         self.window.swap_buffers();
     }
-
-    
 
     fn post_render(&mut self) {
         for (_, models) in self.dynamic_models.iter_mut() {

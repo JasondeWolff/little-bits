@@ -5,8 +5,12 @@
 [package]
 name = "little-bits"
 authors = ["Jason de Wolff"]
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
+homepage = "https://github.com/JasondeWolff/little-bits"
+repository = "https://github.com/JasondeWolff/little-bits"
+categories = ["graphics"]
+license = "MIT"
 
 [dependencies]
 rand = "0.3.*"

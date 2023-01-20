@@ -29,7 +29,7 @@ impl Game for Example {
     fn start(&mut self) {
         let app_icon = app().resources().get_image(String::from("assets/icon.png"));
 
-        app().graphics().set_cursor_lock(true);
+        //app().graphics().set_cursor_lock(true);
         app().graphics().set_title("Little Bits Example");
         app().graphics().set_icon(app_icon);
 
@@ -40,29 +40,53 @@ impl Game for Example {
         self.instance = app().graphics().create_dynamic_model_instance(self.model.clone(), None);
 
         let rotation = Quaternion::from(Float3::new(-90.0, 0.0, 0.0));
-        self.instance.as_mut().transform.set_rotation(rotation);
+        let transform = &mut self.instance.as_mut().transform;
+        transform.set_rotation(rotation);
+        transform.set_translation(Float3::new(0.0, 0.0, -5.0));
     }
     
     fn update(&mut self, delta_time: f32) {
-        let mut translation = Float3::default();
-        if app().input().key(KeyCode::A) {
-            translation += Float3::new(-1.0, 0.0, 0.0);
-        }
-        if app().input().key(KeyCode::D) {
-            translation += Float3::new(1.0, 0.0, 0.0);
-        }
-        if app().input().key(KeyCode::W) {
-            translation += Float3::new(0.0, 0.0, -1.0);
-        }
-        if app().input().key(KeyCode::S) {
-            translation += Float3::new(0.0, 0.0, 1.0);
-        }
-        translation = translation.normalized() * delta_time;
-
-        self.camera.as_mut().translate(translation);
-
-        let rotation = Quaternion::from(Float3::new(-90.0, app().time() * 10.0, 0.0));
+        let rotation = Quaternion::from(Float3::new(-90.0, app().time() * 30.0, 0.0));
         self.instance.as_mut().transform.set_rotation(rotation);
+
+        // Camera Controller
+        {
+            let mut translation = Float3::default();
+            if app().input().key(KeyCode::A) {
+                translation -= Float3::right();
+            }
+            if app().input().key(KeyCode::D) {
+                translation += Float3::right();
+            }
+            if app().input().key(KeyCode::W) {
+                translation -= Float3::forward();
+            }
+            if app().input().key(KeyCode::S) {
+                translation += Float3::forward();
+            }
+            translation = translation.normalized() * delta_time;
+
+            self.camera.as_mut().translate(translation);
+        }
+
+        // Debug UI
+        {
+            let ui = app().graphics().debug_ui();
+
+            ui.window("Hello world")
+                .size([300.0, 100.0], imgui::Condition::FirstUseEver)
+                .build(|| {
+                    ui.text("Hello world!");
+                    ui.text("こんにちは世界！");
+                    ui.text("This...is...imgui-rs!");
+                    ui.separator();
+                    let mouse_pos = ui.io().mouse_pos;
+                    ui.text(format!(
+                        "Mouse Position: ({:.1},{:.1})",
+                        mouse_pos[0], mouse_pos[1]
+                    ));
+                });
+        }
     }
     
     fn stop(&mut self) {

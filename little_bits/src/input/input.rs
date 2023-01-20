@@ -1,14 +1,15 @@
 use crate::system::*;
 use crate::maths::*;
+use crate::app;
 
 #[path = "input_codes.rs"] pub mod input_codes;
 pub use input_codes::*;
 
-pub(crate) const MAX_KEYS: usize = 512;
-pub(crate) const MAX_BUTTONS: usize = 32;
+const MAX_KEYS: usize = 512;
+const MAX_BUTTONS: usize = 32;
 
 #[derive(Clone)]
-pub(crate) struct KeyboardValues {
+struct KeyboardValues {
     pub keys: [bool; MAX_KEYS]
 }
 
@@ -21,7 +22,7 @@ impl KeyboardValues {
 }
 
 #[derive(Clone)]
-pub(crate) struct MouseValues {
+struct MouseValues {
     pub buttons: [bool; MAX_BUTTONS],
     pub position: Float2
 }
@@ -89,9 +90,14 @@ impl Input {
 
     pub(crate) fn set_button(&mut self, button: MouseButton, value: bool) {
         self.mouse.buttons[button as usize] = value;
+
+        let imgui_button: imgui::MouseButton = unsafe { std::mem::transmute(button as i8) };
+        app().graphics().imgui.mouse_button_event(imgui_button, value);
     }
 
     pub(crate) fn set_mouse_position(&mut self, position: Float2) {
         self.mouse.position = position;
+
+        app().graphics().imgui.mouse_pos_event(position);
     }
 }
