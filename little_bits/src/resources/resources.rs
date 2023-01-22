@@ -1,5 +1,8 @@
 extern crate gltf;
 extern crate stb_image;
+extern crate bitmask_enum;
+use bitmask_enum::bitmask;
+use gltf::import;
 
 use std::fs;
 use std::ffi::CString;
@@ -17,6 +20,11 @@ pub use model::*;
 
 #[path = "image.rs"] pub mod image;
 pub use image::*;
+
+#[bitmask(u8)]
+pub enum ImageImportSettings {
+    FlipVertical
+}
 
 pub struct Resources {
     model_manager: ResourceManager<Model>,
@@ -47,10 +55,10 @@ impl Resources {
     fn process_tex(&mut self, texture: &gltf::Texture, base_path: &String) -> Shared<Image> {
         let img = texture.source();
         let img = match img.source() {
-            gltf::image::Source::Uri { uri, mime_type } => {
+            gltf::image::Source::Uri { uri, .. } => {
                 let base_path = Path::new(base_path);
                 let path = base_path.parent().unwrap_or_else(|| Path::new("./")).join(uri);
-                self.get_image(path.into_os_string().into_string().unwrap())
+                self.get_image(path.into_os_string().into_string().unwrap(), Some(ImageImportSettings::FlipVertical))
             }
             _ => panic!("Failed to process tex. (Only uri support)")
         };
@@ -216,14 +224,18 @@ impl Resources {
         }
     }
 
-    pub fn get_image(&mut self, asset_path: String) -> Shared<Image> {
+    pub fn get_image(&mut self, asset_path: String, import_settings: Option<ImageImportSettings>) -> Shared<Image> {
         match self.image_manager.get(&asset_path) {
             Some(resource) => resource,
             None => {
                 let c_asset_path = CString::new(asset_path.as_bytes()).unwrap();
 
                 unsafe {
-                    //stb_image::stb_image::bindgen::stbi_set_flip_vertically_on_load(1);
+                    if let Some(import_settings) = import_settings {
+                        if !import_settings.contains(ImageImportSettings::FlipVertical) {
+                            stb_image::stb_image::bindgen::stbi_set_flip_vertically_on_load(1);
+                        }
+                    }
             
                     let mut width = 0;
                     let mut height = 0;

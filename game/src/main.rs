@@ -27,7 +27,7 @@ impl Game for Example {
     }
 
     fn start(&mut self) {
-        let app_icon = app().resources().get_image(String::from("assets/icon.png"));
+        let app_icon = app().resources().get_image(String::from("assets/icon.png"), None);
 
         //app().graphics().set_cursor_lock(true);
         app().graphics().set_title("Little Bits Example");
