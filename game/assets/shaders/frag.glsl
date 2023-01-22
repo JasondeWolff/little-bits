@@ -8,7 +8,9 @@ in vec2 fragTexCoords;
 
 out mediump vec4 FragColor;
 
+uniform sampler2D baseColor;
+
 void main()
 {
-	FragColor = vec4(fragNormals * 2.0 - 1.0, 1.0);
+	FragColor = vec4(texture(baseColor, fragTexCoords).rgb, 1.0);
 }

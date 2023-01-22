@@ -3,10 +3,48 @@ use std::rc::Rc;
 use crate::maths::*;
 
 use crate::resources::Image;
+use crate::Shared;
 
 #[derive(Clone)]
 pub struct Material {
-    pub diffuse_map: Option<Rc<Image>>
+    pub name: String,
+    pub index: Option<usize>,
+
+    pub base_color_factor: Float4,
+    pub base_color_texture: Shared<Image>,
+
+    pub normal_scale: f32,
+    pub normal_texture: Shared<Image>,
+
+    pub metallic_factor: f32,
+    pub roughness_factor: f32,
+    pub metallic_roughness_texture: Shared<Image>,
+
+    pub occlusion_strength: f32,
+    pub occlusion_texture: Shared<Image>,
+
+    pub emissive_factor: Float3,
+    pub emissive_texture: Shared<Image>
+}
+
+impl Default for Material {
+    fn default() -> Self {
+        Material {
+            name: String::from("default"),
+            index: None,
+            base_color_factor: Float4::new(1.0, 1.0, 1.0, 1.0),
+            base_color_texture: Shared::empty(),
+            normal_scale: 1.0,
+            normal_texture: Shared::empty(),
+            metallic_factor: 0.0,
+            roughness_factor: 1.0,
+            metallic_roughness_texture: Shared::empty(),
+            occlusion_strength: 1.0,
+            occlusion_texture: Shared::empty(),
+            emissive_factor: Float3::default(),
+            emissive_texture: Shared::empty()
+        }
+    }
 }
 
 #[derive(Clone)]

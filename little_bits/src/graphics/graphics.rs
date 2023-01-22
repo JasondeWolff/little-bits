@@ -40,6 +40,11 @@ use opengl::*;
 pub mod camera;
 pub use camera::*;
 
+pub struct GLModel {
+    pub meshes: Vec<GLMesh>,
+    pub materials: Vec<GLMaterial>
+}
+
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub struct ModelInstance {
     pub transform: Transform
@@ -54,7 +59,7 @@ pub struct Graphics {
     pub(crate) imgui: ImGui,
 
     render_camera: Shared<Camera>,
-    dynamic_models: HashMap<*const Model, (Vec<GLMesh>, Vec<Shared<ModelInstance>>)>,
+    dynamic_models: HashMap<*const Model, (GLModel, Vec<Shared<ModelInstance>>)>,
     shader_program: GLShaderProgram
 }
 
@@ -120,9 +125,8 @@ impl Graphics {
     pub fn set_icon(&mut self, icon: Shared<Image>) {
         let icon = icon.as_ref();
         assert_eq!(icon.channel_count, 4, "Failed to set icon. (Icon image must contain 4 channels)");
-
-        let pixels: Vec<u8> = unsafe { slice::from_raw_parts(icon.data, (icon.dimensions.x * icon.dimensions.y * icon.channel_count) as usize).to_vec() };
-        let pixels: Vec<u32> = unsafe { mem::transmute(pixels) };
+        
+        let pixels: Vec<u32> = unsafe { mem::transmute(icon.data.clone()) };
 
         let image: glfw::PixelImage = glfw::PixelImage {
             width: icon.dimensions.x as u32,
@@ -184,7 +188,17 @@ impl Graphics {
                     meshes.push(GLMesh::new(mesh));
                 }
 
-                self.dynamic_models.insert(model_ptr, (meshes, vec![model_instance.clone()]));
+                let mut materials: Vec<GLMaterial> = Vec::new();
+                for material in model.as_ref().materials.iter() {
+                    materials.push(GLMaterial::new(material));
+                }
+
+                let gl_model = GLModel {
+                    meshes: meshes,
+                    materials: materials
+                };
+
+                self.dynamic_models.insert(model_ptr, (gl_model, vec![model_instance.clone()]));
             }
         }
 
@@ -241,12 +255,17 @@ impl Graphics {
 
         for (_, models) in self.dynamic_models.iter_mut() {
             for model_transform in models.1.iter_mut() {
-                for mesh in models.0.iter() {
+                let materials = &models.0.materials;
+
+                for mesh in models.0.meshes.iter() {
                     self.shader_program.bind(); {
                         self.shader_program.set_float4x4(&String::from("model"), model_transform.as_mut().transform.get_matrix());
                         self.shader_program.set_float4x4(&String::from("projection"), proj);
                         self.shader_program.set_float4x4(&String::from("view"), view);
                     
+                        let material = &materials[mesh.material_idx()];
+                        material.bind(&mut self.shader_program);
+
                         mesh.draw();
                     } self.shader_program.unbind();
                 }

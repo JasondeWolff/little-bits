@@ -3,6 +3,7 @@ extern crate stb_image;
 
 use std::fs;
 use std::ffi::CString;
+use std::path::Path;
 
 use crate::system::*;
 use crate::maths::*;
@@ -43,7 +44,20 @@ impl System for Resources {
 }
 
 impl Resources {
-    fn process_node(node: &gltf::Node, buffers: &Vec<gltf::buffer::Data>, _images: &Vec<gltf::image::Data>, meshes: &mut Vec<Mesh>, _materials: &mut Vec<Material>) {
+    fn process_tex(&mut self, texture: &gltf::Texture, base_path: &String) -> Shared<Image> {
+        let img = texture.source();
+        let img = match img.source() {
+            gltf::image::Source::Uri { uri, mime_type } => {
+                let base_path = Path::new(base_path);
+                let path = base_path.parent().unwrap_or_else(|| Path::new("./")).join(uri);
+                self.get_image(path.into_os_string().into_string().unwrap())
+            }
+            _ => panic!("Failed to process tex. (Only uri support)")
+        };
+        img
+    }
+
+    fn process_node(&mut self, node: &gltf::Node, buffers: &Vec<gltf::buffer::Data>, _images: &Vec<gltf::image::Data>, base_path: &String, meshes: &mut Vec<Mesh>, materials: &mut Vec<Material>) {
         let (translation, rotation, scale) = node.transform().decomposed();
         let _translation = Float3::new(translation[0], translation[1], translation[2]);
         let _rotation = Quaternion::new(rotation[3], rotation[0], rotation[1], rotation[2]); // Correct order?!?!?!?
@@ -114,12 +128,48 @@ impl Resources {
                                 read_indices.into_u32().collect::<Vec<_>>()
                             }).expect("Failed to process mesh node. (Indices are required)");
                         
+                        let prim_material = primitive.material();
+                        let pbr = prim_material.pbr_metallic_roughness();
+                        let material_idx = primitive.material().index().unwrap_or(0);
+
+                        let material = &mut materials[material_idx];
+                        if material.index == None {
+                            material.index = Some(material_idx);
+                            material.name = prim_material.name().map(|s| s.into()).unwrap_or(String::from("Unnamed"));
+                            material.base_color_factor = Float4::from(&pbr.base_color_factor());
+                            material.metallic_factor = pbr.metallic_factor();
+                            material.roughness_factor = pbr.roughness_factor();
+                            material.emissive_factor = Float3::from(&prim_material.emissive_factor());
+
+                            if let Some(color_tex) = pbr.base_color_texture() {
+                                material.base_color_texture = self.process_tex(&color_tex.texture(), base_path);
+                            }
+
+                            if let Some(normal_tex) = prim_material.normal_texture() {
+                                material.normal_texture = self.process_tex(&normal_tex.texture(), base_path);
+                                material.normal_scale = normal_tex.scale();
+                            }
+
+                            if let Some(mr_tex) = pbr.metallic_roughness_texture() {
+                                material.metallic_roughness_texture = self.process_tex(&mr_tex.texture(), base_path);
+                            }
+
+                            if let Some(occlusion_tex) = prim_material.occlusion_texture() {
+                                material.occlusion_texture = self.process_tex(&occlusion_tex.texture(), base_path);
+                                material.occlusion_strength = occlusion_tex.strength();
+                            }
+
+                            if let Some(emissive_tex) = prim_material.emissive_texture() {
+                                material.emissive_texture = self.process_tex(&emissive_tex.texture(), base_path);
+                            }
+                        }
+
                         meshes.push(Mesh {
                             vertices: vertices,
                             indices: indices,
                             min: min,
                             max: max,
-                            material_idx: 0
+                            material_idx: material_idx
                         });
                     } else {
                         panic!("Failed to process mesh node. (Trying to parse a non-triangle)");
@@ -134,12 +184,12 @@ impl Resources {
         match self.model_manager.get(&asset_path) {
             Some(resource) => resource,
             None => {
-                let mut meshes = Vec::new();
-                let mut materials = Vec::new();
-
                 let (document, buffers, images) = gltf::import(asset_path.clone()).expect("Failed to get model.");
+
+                let mut meshes = Vec::new();
+                let mut materials = vec![Material::default(); document.materials().len()];
                 if document.nodes().len() > 0 {
-                    Self::process_node(document.nodes().next().as_ref().unwrap(), &buffers, &images, &mut meshes, &mut materials);
+                    self.process_node(document.nodes().next().as_ref().unwrap(), &buffers, &images, &asset_path, &mut meshes, &mut materials);
                 }
 
                 let resource = Shared::new(Model {
@@ -173,7 +223,7 @@ impl Resources {
                 let c_asset_path = CString::new(asset_path.as_bytes()).unwrap();
 
                 unsafe {
-                    stb_image::stb_image::bindgen::stbi_set_flip_vertically_on_load(1);
+                    //stb_image::stb_image::bindgen::stbi_set_flip_vertically_on_load(1);
             
                     let mut width = 0;
                     let mut height = 0;
@@ -185,8 +235,8 @@ impl Resources {
                         &mut channels,
                         0,
                     );
-
                     assert!(!data.is_null(), "Failed to read image.");
+                    let data: Vec<u8> = std::slice::from_raw_parts(data, (width * height * channels) as usize).to_vec();
 
                     let resource = Shared::new(Image {
                         data: data,

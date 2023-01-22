@@ -11,7 +11,8 @@ pub struct GLMesh {
     vbo: Option<GLVBO>,
     ebo: Option<GLEBO>,
 
-    index_count: usize
+    index_count: usize,
+    material_idx: usize,
 }
 
 #[repr(C)]
@@ -59,12 +60,17 @@ impl GLMesh {
             vao: Some(vao),
             vbo: Some(vbo),
             ebo: Some(ebo),
-            index_count: indices.len()
+            index_count: indices.len(),
+            material_idx: mesh.material_idx
         }
     }
 
     fn vao(&self) -> &GLVAO {
         self.vao.as_ref().unwrap()
+    }
+
+    pub fn material_idx(&self) -> usize {
+        self.material_idx
     }
 
     pub fn draw(&self) {

@@ -584,7 +584,7 @@ pub fn gl_gen_mips(target: GLTextureType) {
 
 pub fn gl_tex_image_2d(internal_format: u32, width: i32, height: i32, format: u32, data: *const c_void) {
     unsafe {
-        gl::TexImage2D(gl::TEXTURE_2D, 0, internal_format as i32, width, height, format as i32, 0, gl::UNSIGNED_BYTE, data);
+        gl::TexImage2D(gl::TEXTURE_2D, 0, internal_format as i32, width, height, 0, format, gl::UNSIGNED_BYTE, data);
         gl_check();
     }
 }
