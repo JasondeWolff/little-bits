@@ -145,7 +145,7 @@ impl<T: Rand + Float> Rand for Matrix4<T> {
 }
 
 impl<T: Float> Matrix4<T> {
-    fn invert(&mut self) {
+    pub fn invert(&mut self) {
         let elems: [T; 16] = [
             self[5] * self[10] * self[15] - self[5] * self[11] * self[14] - self[9] * self[6] * self[15] +
 			 self[9] * self[7] * self[14] + self[13] * self[6] * self[11] - self[13] * self[7] * self[10],
@@ -191,7 +191,7 @@ impl<T: Float> Matrix4<T> {
         }
     }
 
-    fn transpose(&mut self) {
+    pub fn transpose(&mut self) {
         let tmp = self.clone();
         for i in 0..4 {
             for j in 0..4 {

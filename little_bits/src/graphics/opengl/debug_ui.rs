@@ -11,7 +11,6 @@ use crate::maths::Float2;
 
 pub struct ImGui {
     context: imgui::Context,
-    ui: *mut imgui::Ui,
     renderer: Renderer
 }
 
@@ -21,7 +20,6 @@ impl ImGui {
         let renderer = Renderer::new(&mut context);
         ImGui {
             context: context,
-            ui: std::ptr::null::<imgui::Ui>() as *mut imgui::Ui,
             renderer: renderer
         }
     }
@@ -39,13 +37,8 @@ impl ImGui {
         self.context.io_mut().add_mouse_pos_event([pos.x, pos.y]);
     }
 
-    pub fn new_frame(&mut self) {
-        self.ui = self.context.new_frame() as *mut imgui::Ui;
-    }
-
-    pub fn ui(&mut self) -> &mut imgui::Ui {
-        assert!(!self.ui.is_null(), "Failed to get ui. (Must call new_frame() first)");
-        unsafe { self.ui.as_mut().unwrap() }
+    pub fn new_frame(&mut self) -> &mut imgui::Ui {
+        self.context.new_frame()
     }
 
     pub fn render(&mut self) {

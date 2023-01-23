@@ -11,6 +11,7 @@ pub struct Transform3D<T: Float> {
     scale: Vector3<T>,
 
     model: Matrix4<T>,
+    model_inv_trans: Matrix4<T>,
     model_dirty: bool
 }
 
@@ -27,6 +28,7 @@ impl<T: Float + Default> Transform3D<T> {
             rotation: Quaternion::identity(),
             scale: Vector3::new(t!(1.0), t!(1.0), t!(1.0)),
             model: Matrix4::identity(),
+            model_inv_trans: Matrix4::identity(),
             model_dirty: true
         }
     }
@@ -69,9 +71,24 @@ impl<T: Float + Default> Transform3D<T> {
     pub fn get_matrix(&mut self) -> Matrix4<T> {
         if self.model_dirty {
             self.model = Matrix4::translation(self.translation) * Matrix4::from(self.rotation) * Matrix4::scale(self.scale);
+            self.model_inv_trans = self.model.clone();
+            self.model_inv_trans.invert();
+            self.model_inv_trans.transpose();
             self.model_dirty = false;
         }
 
         self.model
+    }
+
+    pub fn get_inv_trans_matrix(&mut self) -> Matrix4<T> {
+        if self.model_dirty {
+            self.model = Matrix4::translation(self.translation) * Matrix4::from(self.rotation) * Matrix4::scale(self.scale);
+            self.model_inv_trans = self.model.clone();
+            self.model_inv_trans.invert();
+            self.model_inv_trans.transpose();
+            self.model_dirty = false;
+        }
+
+        self.model_inv_trans
     }
 }

@@ -10,7 +10,6 @@ fn main() {
 
     init(Example::new());
 }
-
 struct Example {
     model: Shared<Model>,
     instance: Shared<ModelInstance>,
@@ -64,29 +63,32 @@ impl Game for Example {
             if app().input().key(KeyCode::S) {
                 translation += Float3::forward();
             }
+            if app().input().key(KeyCode::E) {
+                translation += Float3::up();
+            }
+            if app().input().key(KeyCode::Q) {
+                translation -= Float3::up();
+            }
             translation = translation.normalized() * delta_time;
 
             self.camera.as_mut().translate(translation);
         }
+    }
 
-        // Debug UI
-        {
-            let ui = app().graphics().debug_ui();
-
-            ui.window("Hello world")
-                .size([300.0, 100.0], imgui::Condition::FirstUseEver)
-                .build(|| {
-                    ui.text("Hello world!");
-                    ui.text("こんにちは世界！");
-                    ui.text("This...is...imgui-rs!");
-                    ui.separator();
-                    let mouse_pos = ui.io().mouse_pos;
-                    ui.text(format!(
-                        "Mouse Position: ({:.1},{:.1})",
-                        mouse_pos[0], mouse_pos[1]
-                    ));
-                });
-        }
+    fn debug_ui(&mut self, ui: &mut DebugUI) {
+        ui.window("Hello world")
+        .size([300.0, 100.0], imgui::Condition::FirstUseEver)
+        .build(|| {
+            ui.text("Hello world!");
+            ui.text("こんにちは世界！");
+            ui.text("This...is...imgui-rs!");
+            ui.separator();
+            let mouse_pos = ui.io().mouse_pos;
+            ui.text(format!(
+                "Mouse Position: ({:.1},{:.1})",
+                mouse_pos[0], mouse_pos[1]
+            ));
+        });
     }
     
     fn stop(&mut self) {

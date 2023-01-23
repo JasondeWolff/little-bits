@@ -38,9 +38,25 @@ impl GLMaterial {
     }
 
     pub fn bind(&self, shader_program: &mut GLShaderProgram) {
-        if let Some(base_color_texture) = &self.base_color_texture {
+        if let Some(base_color_texture) = &self.occlusion_texture {
             base_color_texture.bind(0);
-            shader_program.set_sampler_slot(&String::from("baseColor"), 0);
+            shader_program.set_sampler_slot(&String::from("baseColorMap"), 0);
+        }
+        if let Some(normal_texture) = &self.normal_texture {
+            normal_texture.bind(1);
+            shader_program.set_sampler_slot(&String::from("normalMap"), 1);
+        }
+        if let Some(mr_texture) = &self.metallic_roughness_texture {
+            mr_texture.bind(2);
+            shader_program.set_sampler_slot(&String::from("metallicRoughnessMap"), 2);
+        }
+        if let Some(occlusion_texture) = &self.occlusion_texture {
+            occlusion_texture.bind(3);
+            shader_program.set_sampler_slot(&String::from("occlusionMap"), 3);
+        }
+        if let Some(emissive_texture) = &self.emissive_texture {
+            emissive_texture.bind(4);
+            shader_program.set_sampler_slot(&String::from("emissiveMap"), 4);
         }
     }
 }

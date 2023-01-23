@@ -93,7 +93,6 @@ impl System for Graphics {
 
         let mut imgui = ImGui::new();
         imgui.resize(default_dimensions);
-        imgui.new_frame();
 
         Box::new(Graphics {
             glfw: glfw,
@@ -153,8 +152,8 @@ impl Graphics {
         self.window.should_close()
     }
 
-    pub fn debug_ui(&mut self) -> &mut DebugUI {
-        self.imgui.ui()
+    pub(crate) fn debug_ui(&mut self) -> &mut DebugUI {
+        self.imgui.new_frame()
     }
 
     pub fn create_camera(&mut self) -> Shared<Camera> {
@@ -240,16 +239,17 @@ impl Graphics {
         gl_clear_color(Float3::new(1.0, 0.5, 0.32));
         gl_clear();
 
-        let (proj, view) = match self.render_camera.try_as_mut() {
+        let (proj, view, viewPos) = match self.render_camera.try_as_mut() {
             Some(mut camera) => {
-                (camera.get_proj_matrix(), camera.get_view_matrix())
+                (camera.get_proj_matrix(), camera.get_view_matrix(), camera.get_translation())
             },
             None => {
                 let aspect_ratio: f32 = self.dimensions().x as f32 / self.dimensions().y as f32;
                 let proj = Float4x4::perspective(60.0, aspect_ratio, 0.01, 1000.0);
                 let view = Float4x4::identity();
+                let viewPos = Float3::default();
 
-                (proj, view)
+                (proj, view, viewPos)
             }
         };
 
@@ -259,9 +259,13 @@ impl Graphics {
 
                 for mesh in models.0.meshes.iter() {
                     self.shader_program.bind(); {
-                        self.shader_program.set_float4x4(&String::from("model"), model_transform.as_mut().transform.get_matrix());
+                        let mut model_transform = model_transform.as_mut();
+                        self.shader_program.set_float4x4(&String::from("model"), model_transform.transform.get_matrix());
+                        self.shader_program.set_float4x4(&String::from("modelInvTrans"), model_transform.transform.get_inv_trans_matrix());
                         self.shader_program.set_float4x4(&String::from("projection"), proj);
                         self.shader_program.set_float4x4(&String::from("view"), view);
+
+                        self.shader_program.set_float3(&String::from("viewPos"), viewPos);
                     
                         let material = &materials[mesh.material_idx()];
                         material.bind(&mut self.shader_program);
@@ -273,7 +277,7 @@ impl Graphics {
         }
 
         self.imgui.render();
-        self.imgui.new_frame();
+        //self.imgui.new_frame();
         self.window.swap_buffers();
     }
 

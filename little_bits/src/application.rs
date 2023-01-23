@@ -1,5 +1,6 @@
 #[path = "graphics/graphics.rs"] pub mod graphics;
 pub use graphics::*;
+pub use graphics::opengl::DebugUI;
 
 #[path = "resources/resources.rs"] pub mod resources;
 pub use resources::*;
@@ -11,7 +12,7 @@ pub use input::*;
 pub use timer::Timer;
 
 use crate::System;
-
+use crate::app;
 pub struct Application {
     graphics: Option<Box<Graphics>>,
     resources: Option<Box<Resources>>,
@@ -27,6 +28,7 @@ pub trait Game {
 
     fn start(&mut self);
     fn update(&mut self, delta_time: f32);
+    fn debug_ui(&mut self, _: &mut DebugUI) {}
     fn stop(&mut self);
 }
 
@@ -63,6 +65,7 @@ impl Application {
             delta_timer.reset();
 
             self.game.update(delta_time);
+            self.game.debug_ui(app().graphics().debug_ui());
 
             self.input().update();
             self.graphics().update();

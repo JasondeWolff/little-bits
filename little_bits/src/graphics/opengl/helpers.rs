@@ -385,6 +385,13 @@ impl GLShaderProgram {
         }
     }
 
+    pub fn set_float3(&mut self, name: &String, value: Float3) {
+        unsafe {
+            gl::Uniform3f(self.uniform_location(name), value.x, value.y, value.z);
+            gl_check();
+        }
+    }
+
     pub fn set_float4x4(&mut self, name: &String, value: Float4x4) {
         unsafe {
             gl::UniformMatrix4fv(self.uniform_location(name), 1, gl::FALSE, value.elems.as_ptr() as *const f32);
@@ -406,7 +413,9 @@ impl GLShaderProgram {
                     
                     let location: i32 = gl::GetUniformLocation(self.buffer, cname.as_ptr() as *const i8);
                     gl_check();
-                    assert!(location >= 0, "Failed to get uniform location. (Name: '{}')", name);
+                    if location < 1 {
+                        eprintln!("Failed to get uniform location. (Name: '{}')", name);
+                    }
 
                     self.uniform_locations.insert(name.clone(), location);
                     location
