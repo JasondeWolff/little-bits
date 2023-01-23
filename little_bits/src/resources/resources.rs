@@ -2,7 +2,6 @@ extern crate gltf;
 extern crate stb_image;
 extern crate bitmask_enum;
 use bitmask_enum::bitmask;
-use gltf::import;
 
 use std::fs;
 use std::ffi::CString;

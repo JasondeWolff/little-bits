@@ -9,7 +9,6 @@ use crate::app;
 use crate::Shared;
 
 use std::mem;
-use std::slice;
 use std::sync::mpsc::Receiver;
 use std::collections::HashMap;
 

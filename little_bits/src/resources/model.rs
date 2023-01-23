@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::maths::*;
 
 use crate::resources::Image;
