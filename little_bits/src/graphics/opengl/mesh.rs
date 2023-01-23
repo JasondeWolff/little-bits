@@ -19,7 +19,8 @@ pub struct GLMesh {
 pub struct GLVertex {
     position: Float3,
     normal: Float3,
-    tex_coord: Float2
+    tex_coord: Float2,
+    tangent: Float4
 }
 
 impl GLMesh {
@@ -33,7 +34,8 @@ impl GLMesh {
             vertices.push(GLVertex {
                 position: mesh.vertices[i].position,
                 normal: mesh.vertices[i].normal,
-                tex_coord: mesh.vertices[i].tex_coord
+                tex_coord: mesh.vertices[i].tex_coord,
+                tangent: mesh.vertices[i].tangent
             });
         }
         let mut indices: Vec<u32> = mesh.indices.clone();
@@ -47,10 +49,12 @@ impl GLMesh {
             gl_vertex_attrib_ptr(0, 3, vertex_size, offset_of!(GLVertex, position) as *const c_void);
             gl_vertex_attrib_ptr(1, 3, vertex_size, offset_of!(GLVertex, normal) as *const c_void);
             gl_vertex_attrib_ptr(2, 2, vertex_size, offset_of!(GLVertex, tex_coord) as *const c_void);
+            gl_vertex_attrib_ptr(3, 4, vertex_size, offset_of!(GLVertex, tangent) as *const c_void);
 
             gl_enable_vertex_attrib_array(0);
             gl_enable_vertex_attrib_array(1);
             gl_enable_vertex_attrib_array(2);
+            gl_enable_vertex_attrib_array(3);
 
             ebo.bind();
             ebo.set_data(mem::size_of::<u32>() * mesh.indices.len(), indices.as_mut_ptr() as *mut c_void);

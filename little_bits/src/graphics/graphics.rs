@@ -72,6 +72,7 @@ impl System for Graphics {
         glfw.window_hint(glfw::WindowHint::ContextVersion(4, 1));
         glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
         glfw.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
+        glfw.window_hint(glfw::WindowHint::Samples(Some(4)));
         
         let (mut window, events) = glfw.create_window(default_dimensions.x as u32, default_dimensions.y as u32, "Little Bits", glfw::WindowMode::Windowed)
             .expect("Failed to create GLFW window.");
@@ -236,10 +237,10 @@ impl Graphics {
     }
 
     fn render(&mut self) {
-        gl_clear_color(Float3::new(1.0, 0.5, 0.32));
+        gl_clear_color(Float3::new(0.1, 0.1, 0.1));
         gl_clear();
 
-        let (proj, view, viewPos) = match self.render_camera.try_as_mut() {
+        let (proj, view, view_pos) = match self.render_camera.try_as_mut() {
             Some(mut camera) => {
                 (camera.get_proj_matrix(), camera.get_view_matrix(), camera.get_translation())
             },
@@ -247,9 +248,9 @@ impl Graphics {
                 let aspect_ratio: f32 = self.dimensions().x as f32 / self.dimensions().y as f32;
                 let proj = Float4x4::perspective(60.0, aspect_ratio, 0.01, 1000.0);
                 let view = Float4x4::identity();
-                let viewPos = Float3::default();
+                let view_pos = Float3::default();
 
-                (proj, view, viewPos)
+                (proj, view, view_pos)
             }
         };
 
@@ -261,11 +262,10 @@ impl Graphics {
                     self.shader_program.bind(); {
                         let mut model_transform = model_transform.as_mut();
                         self.shader_program.set_float4x4(&String::from("model"), model_transform.transform.get_matrix());
-                        self.shader_program.set_float4x4(&String::from("modelInvTrans"), model_transform.transform.get_inv_trans_matrix());
                         self.shader_program.set_float4x4(&String::from("projection"), proj);
                         self.shader_program.set_float4x4(&String::from("view"), view);
 
-                        self.shader_program.set_float3(&String::from("viewPos"), viewPos);
+                        self.shader_program.set_float3(&String::from("viewPos"), view_pos);
                     
                         let material = &materials[mesh.material_idx()];
                         material.bind(&mut self.shader_program);

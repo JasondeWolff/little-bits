@@ -98,15 +98,15 @@ impl Resources {
                                 }
                         }).collect();
 
+                        let indices = reader
+                            .read_indices()
+                            .map(|read_indices| {
+                                read_indices.into_u32().collect::<Vec<_>>()
+                            }).expect("Failed to process mesh node. (Indices are required)");
+
                         if let Some(normals) = reader.read_normals() {
                             for (i, normal) in normals.enumerate() {
                                 vertices[i].normal = Float3::from(&normal);
-                            }
-                        }
-
-                        if let Some(tangents) = reader.read_tangents() {
-                            for (i, tangent) in tangents.enumerate() {
-                                vertices[i].tangent = Float4::from(&tangent);
                             }
                         }
 
@@ -123,18 +123,87 @@ impl Resources {
                             tex_coord_channel += 1;
                         }
 
+                        if let Some(tangents) = reader.read_tangents() {
+                            for (i, tangent) in tangents.enumerate() {
+                                vertices[i].tangent = Float4::from(&tangent);
+                            }
+                        } else {
+                            // Source: 2001. http://www.terathon.com/code/tangent.html
+                            let mut tan1 = vec![Float3::default(); vertices.len()];
+                            let mut tan2 = vec![Float3::default(); vertices.len()];
+
+                            for i in (0..indices.len()).step_by(3) {
+                                let i1 = indices[i + 0] as usize;
+                                let i2 = indices[i + 1] as usize;
+                                let i3 = indices[i + 2] as usize;
+                            
+                                let v1 = vertices[i1].position;
+                                let v2 = vertices[i2].position;
+                                let v3 = vertices[i3].position;
+                            
+                                let w1 = vertices[i1].tex_coord;
+                                let w2 = vertices[i2].tex_coord;
+                                let w3 = vertices[i3].tex_coord;
+                            
+                                let x1 = v2.x - v1.x;
+                                let x2 = v3.x - v1.x;
+                                let y1 = v2.y - v1.y;
+                                let y2 = v3.y - v1.y;
+                                let z1 = v2.z - v1.z;
+                                let z2 = v3.z - v1.z;
+
+                                let s1 = w2.x - w1.x;
+                                let s2 = w3.x - w1.x;
+                                let t1 = w2.y - w1.y;
+                                let t2 = w3.y - w1.y;
+
+                                let r = 1.0 / (s1 * t2 - s2 * t1);
+
+                                let sdir = Float3::new(
+                                    (t2 * x1 - t1 * x2) * r,
+                                    (t2 * y1 - t1 * y2) * r,
+                                    (t2 * z1 - t1 * z2) * r
+                                );
+
+                                let tdir = Float3::new(
+                                    (s1 * x2 - s2 * x1) * r,
+                                    (s1 * y2 - s2 * y1) * r,
+                                    (s1 * z2 - s2 * z1) * r
+                                );
+                            
+                                tan1[i1] += sdir;
+                                tan1[i2] += sdir;
+                                tan1[i3] += sdir;
+                            
+                                tan2[i1] += tdir;
+                                tan2[i2] += tdir;
+                                tan2[i3] += tdir;
+                            }
+                        
+                            for i in 0..vertices.len() {
+                                let n = vertices[i].normal;
+                                let t = tan1[i];
+                            
+                                let mut xyz = t - (n * dot(n, t));
+                                xyz.normalize();
+                            
+                                let w;
+                                if dot(cross(n, t), tan2[i]) < 0.0 {
+                                    w = -1.0;
+                                } else {
+                                    w = 1.0;
+                                }
+
+                                vertices[i].tangent = Float4::new(xyz.x, xyz.y, xyz.z, w);
+                            }
+                        }
+
                         if let Some(colors) = reader.read_colors(0) {
                             let colors = colors.into_rgba_f32();
                             for (i, color) in colors.enumerate() {
                                 vertices[i].color = Float4::from(&color);
                             }
                         }
-
-                        let indices = reader
-                            .read_indices()
-                            .map(|read_indices| {
-                                read_indices.into_u32().collect::<Vec<_>>()
-                            }).expect("Failed to process mesh node. (Indices are required)");
                         
                         let prim_material = primitive.material();
                         let pbr = prim_material.pbr_metallic_roughness();

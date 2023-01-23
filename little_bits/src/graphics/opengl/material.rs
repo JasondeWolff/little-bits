@@ -38,7 +38,7 @@ impl GLMaterial {
     }
 
     pub fn bind(&self, shader_program: &mut GLShaderProgram) {
-        if let Some(base_color_texture) = &self.occlusion_texture {
+        if let Some(base_color_texture) = &self.base_color_texture {
             base_color_texture.bind(0);
             shader_program.set_sampler_slot(&String::from("baseColorMap"), 0);
         }

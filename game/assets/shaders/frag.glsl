@@ -3,14 +3,14 @@
 precision mediump float;
 
 in vec3 fragPosition;
-in vec3 fragNormal;
 in vec2 fragTexCoord;
+in mat3 TBN;
 
 out mediump vec4 FragColor;
 
 uniform sampler2D baseColorMap;
 uniform sampler2D normalMap;
-uniform sampler2D metallicRougnessMap;
+uniform sampler2D metallicRoughnessMap;
 uniform sampler2D occlusionMap;
 uniform sampler2D emissiveMap;
 
@@ -59,15 +59,20 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 }
 // ----------------------------------------------------------------------------
 void main()
-{		
-    vec3 N = normalize(fragNormal);
+{
+    float normal_strength = 1.0;
+    vec3 normal = texture(normalMap, fragTexCoord).rgb;
+    normal = normal * 2.0 - 1.0;
+    normal = normalize(mix(TBN * normal, TBN[2], 1.0 - normal_strength));
+
+    vec3 N = normal;
     vec3 V = normalize(viewPos - fragPosition);
 	float ao = 0.1;
 
 	vec3 albedo = texture(baseColorMap, fragTexCoord).rgb;
-	vec2 metallicRougness = texture(metallicRougnessMap, fragTexCoord).gb;
-	float metallic = metallicRougness.x;
-	float roughness = metallicRougness.y;
+	vec2 metallicRoughness = texture(metallicRoughnessMap, fragTexCoord).gb;
+	float metallic = metallicRoughness.y;
+	float roughness = metallicRoughness.x;
 	float occlusion = texture(occlusionMap, fragTexCoord).r;
 	vec3 emission = texture(emissiveMap, fragTexCoord).rgb;
 
@@ -83,7 +88,7 @@ void main()
         // calculate per-light radiance
         vec3 L = normalize(-vec3(0.1, -1.0, 0.0));
         vec3 H = normalize(V + L);
-        vec3 radiance = vec3(1.0, 1.0, 1.0) * 0.1;
+        vec3 radiance = vec3(1.0, 1.0, 1.0) * 1.1;
 
         // Cook-Torrance BRDF
         float NDF = DistributionGGX(N, H, roughness);   
@@ -116,7 +121,7 @@ void main()
     // this ambient lighting with environment lighting).
     vec3 ambient = vec3(0.03) * albedo * ao;
 
-    vec3 color = ambient + Lo + emission;
+    vec3 color = (ambient + Lo) * occlusion + emission;
 
     // HDR tonemapping
     color = color / (color + vec3(1.0));
