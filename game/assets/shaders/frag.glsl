@@ -8,11 +8,26 @@ in mat3 TBN;
 
 out mediump vec4 FragColor;
 
-uniform sampler2D baseColorMap;
-uniform sampler2D normalMap;
-uniform sampler2D metallicRoughnessMap;
-uniform sampler2D occlusionMap;
-uniform sampler2D emissiveMap;
+uniform struct Material {
+    vec4 baseColorFactor;
+    float normalScale;
+    float metallicFactor;
+    float roughnessFactor;
+    float occlusionStrength;
+    vec3 emissiveFactor;
+
+    bool hasBaseColorMap;
+    bool hasNormalMap;
+    bool hasMetallicRoughnessMap;
+    bool hasOcclusionMap;
+    bool hasEmissiveMap;
+
+    sampler2D baseColorMap;
+    sampler2D normalMap;
+    sampler2D metallicRoughnessMap;
+    sampler2D occlusionMap;
+    sampler2D emissiveMap;
+} material;
 
 uniform vec3 viewPos;
 
@@ -60,21 +75,47 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 // ----------------------------------------------------------------------------
 void main()
 {
-    float normal_strength = 1.0;
-    vec3 normal = texture(normalMap, fragTexCoord).rgb;
-    normal = normal * 2.0 - 1.0;
-    normal = normalize(mix(TBN * normal, TBN[2], 1.0 - normal_strength));
+    vec3 albedo = material.baseColorFactor.rgb;
+    if (material.hasBaseColorMap)
+    {
+        albedo = albedo * texture(material.baseColorMap, fragTexCoord).rgb;
+    }
 
-    vec3 N = normal;
+    vec3 N;
+    if (material.hasNormalMap)
+    {
+        vec3 normal = texture(material.normalMap, fragTexCoord).rgb;
+        normal = normal * 2.0 - 1.0;
+        N = normalize(mix(TBN * normal, TBN[2], 1.0 - material.normalScale));
+    }
+    else
+    {
+        N = TBN[2];
+    }
+
+    float metallic = material.metallicFactor;
+    float roughness = material.roughnessFactor;
+    if (material.hasMetallicRoughnessMap)
+    {
+        vec2 metallicRoughness = texture(material.metallicRoughnessMap, fragTexCoord).gb;
+	    metallic = metallic * metallicRoughness.y;
+	    roughness = roughness * metallicRoughness.x;
+    }
+
+    float occlusion = 1.0;
+    if (material.hasOcclusionMap)
+    {
+        occlusion = mix(texture(material.occlusionMap, fragTexCoord).r, 1.0, 1.0 - material.occlusionStrength);
+    }
+
+	vec3 emission = vec3(0.0, 0.0, 0.0);
+    if (material.hasEmissiveMap)
+    {
+        emission = texture(material.emissiveMap, fragTexCoord).rgb * material.emissiveFactor;
+    }
+
     vec3 V = normalize(viewPos - fragPosition);
 	float ao = 0.1;
-
-	vec3 albedo = texture(baseColorMap, fragTexCoord).rgb;
-	vec2 metallicRoughness = texture(metallicRoughnessMap, fragTexCoord).gb;
-	float metallic = metallicRoughness.y;
-	float roughness = metallicRoughness.x;
-	float occlusion = texture(occlusionMap, fragTexCoord).r;
-	vec3 emission = texture(emissiveMap, fragTexCoord).rgb;
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    

@@ -22,7 +22,7 @@ pub struct Material {
     pub occlusion_texture: Shared<Image>,
 
     pub emissive_factor: Float3,
-    pub emissive_texture: Shared<Image>
+    pub emissive_texture: Shared<Image>,
 }
 
 impl Default for Material {
@@ -40,7 +40,7 @@ impl Default for Material {
             occlusion_strength: 1.0,
             occlusion_texture: Shared::empty(),
             emissive_factor: Float3::default(),
-            emissive_texture: Shared::empty()
+            emissive_texture: Shared::empty(),
         }
     }
 }
@@ -82,5 +82,5 @@ pub struct Mesh {
 #[derive(Clone)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
-    pub materials: Vec<Material>
+    pub materials: Vec<Shared<Material>>
 }

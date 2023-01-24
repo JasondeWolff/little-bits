@@ -378,6 +378,13 @@ impl GLShaderProgram {
         }
     }
 
+    pub fn set_bool(&mut self, name: &String, value: bool) {
+        unsafe {
+            gl::Uniform1i(self.uniform_location(name), value as i32);
+            gl_check();
+        }
+    }
+
     pub fn set_float(&mut self, name: &String, value: f32) {
         unsafe {
             gl::Uniform1f(self.uniform_location(name), value);
@@ -388,6 +395,13 @@ impl GLShaderProgram {
     pub fn set_float3(&mut self, name: &String, value: Float3) {
         unsafe {
             gl::Uniform3f(self.uniform_location(name), value.x, value.y, value.z);
+            gl_check();
+        }
+    }
+
+    pub fn set_float4(&mut self, name: &String, value: Float4) {
+        unsafe {
+            gl::Uniform4f(self.uniform_location(name), value.x, value.y, value.z, value.w);
             gl_check();
         }
     }

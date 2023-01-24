@@ -77,17 +77,17 @@ impl Game for Example {
 
     fn debug_ui(&mut self, ui: &mut DebugUI) {
         ui.window("Hello world")
-        .size([300.0, 100.0], imgui::Condition::FirstUseEver)
+        .size([300.0, 600.0], imgui::Condition::FirstUseEver)
         .build(|| {
-            ui.text("Hello world!");
-            ui.text("こんにちは世界！");
-            ui.text("This...is...imgui-rs!");
-            ui.separator();
-            let mouse_pos = ui.io().mouse_pos;
-            ui.text(format!(
-                "Mouse Position: ({:.1},{:.1})",
-                mouse_pos[0], mouse_pos[1]
-            ));
+            let material = &mut self.model.as_mut().materials[0];
+            let mut material = material.as_mut();
+
+            ui.color_picker4("Base Color", &mut material.base_color_factor);
+            ui.slider("Normal Scale", 0.0, 1.0, &mut material.normal_scale);
+            ui.slider("Metallic Factor", 0.0, 1.0, &mut material.metallic_factor);
+            ui.slider("Roughness Factor", 0.0, 1.0, &mut material.roughness_factor);
+            ui.slider("Occlusion Strength", 0.0, 1.0, &mut material.occlusion_strength);
+            ui.color_picker3("Emissive Factor", &mut material.emissive_factor);
         });
     }
     

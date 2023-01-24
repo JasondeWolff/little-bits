@@ -270,7 +270,7 @@ impl Resources {
 
                 let resource = Shared::new(Model {
                     meshes: meshes,
-                    materials: materials
+                    materials: materials.into_iter().map(|m| Shared::new(m)).collect()
                 });
 
                 self.model_manager.insert(resource.clone(), asset_path);

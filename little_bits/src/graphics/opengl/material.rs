@@ -1,62 +1,73 @@
 use crate::graphics::opengl::*;
-use crate::maths::*;
 use crate::resources::Material;
+use crate::Shared;
 
 pub struct GLMaterial {
-    pub base_color_factor: Float4,
     pub base_color_texture: Option<GLTexture2D>,
-
-    pub normal_scale: f32,
     pub normal_texture: Option<GLTexture2D>,
-
-    pub metallic_factor: f32,
-    pub roughness_factor: f32,
     pub metallic_roughness_texture: Option<GLTexture2D>,
-
-    pub occlusion_strength: f32,
     pub occlusion_texture: Option<GLTexture2D>,
-
-    pub emissive_factor: Float3,
-    pub emissive_texture: Option<GLTexture2D>
+    pub emissive_texture: Option<GLTexture2D>,
+    material_properties: Shared<Material>
 }
 
 impl GLMaterial {
-    pub fn new(material: &Material) -> Self {
+    pub fn new(material: Shared<Material>) -> Self {
         GLMaterial {
-            base_color_factor: material.base_color_factor,
-            base_color_texture: GLTexture2D::new(&material.base_color_texture),
-            normal_scale: material.normal_scale,
-            normal_texture: GLTexture2D::new(&material.normal_texture),
-            metallic_factor: material.metallic_factor,
-            roughness_factor: material.roughness_factor,
-            metallic_roughness_texture: GLTexture2D::new(&material.metallic_roughness_texture),
-            occlusion_strength: material.occlusion_strength,
-            occlusion_texture: GLTexture2D::new(&material.occlusion_texture),
-            emissive_factor: material.emissive_factor,
-            emissive_texture: GLTexture2D::new(&material.emissive_texture)
+            base_color_texture: GLTexture2D::new(&material.as_ref().base_color_texture),
+            normal_texture: GLTexture2D::new(&material.as_ref().normal_texture),
+            metallic_roughness_texture: GLTexture2D::new(&material.as_ref().metallic_roughness_texture),
+            occlusion_texture: GLTexture2D::new(&material.as_ref().occlusion_texture),
+            emissive_texture: GLTexture2D::new(&material.as_ref().emissive_texture),
+            material_properties: material.clone()
         }
     }
 
     pub fn bind(&self, shader_program: &mut GLShaderProgram) {
+        shader_program.set_float4(&String::from("material.baseColorFactor"), self.material_properties.as_ref().base_color_factor);
         if let Some(base_color_texture) = &self.base_color_texture {
             base_color_texture.bind(0);
-            shader_program.set_sampler_slot(&String::from("baseColorMap"), 0);
+            shader_program.set_sampler_slot(&String::from("material.baseColorMap"), 0);
+            shader_program.set_bool(&String::from("material.hasBaseColorMap"), true);
+        } else {
+            shader_program.set_bool(&String::from("material.hasBaseColorMap"), false);
         }
+
+        shader_program.set_float(&String::from("material.normalScale"), self.material_properties.as_ref().normal_scale);
         if let Some(normal_texture) = &self.normal_texture {
             normal_texture.bind(1);
-            shader_program.set_sampler_slot(&String::from("normalMap"), 1);
+            shader_program.set_sampler_slot(&String::from("material.normalMap"), 1);
+            shader_program.set_bool(&String::from("material.hasNormalMap"), true);
+        } else {
+            shader_program.set_bool(&String::from("material.hasNormalMap"), false);
         }
+
+        shader_program.set_float(&String::from("material.metallicFactor"), self.material_properties.as_ref().metallic_factor);
+        shader_program.set_float(&String::from("material.roughnessFactor"), self.material_properties.as_ref().roughness_factor);
         if let Some(mr_texture) = &self.metallic_roughness_texture {
             mr_texture.bind(2);
-            shader_program.set_sampler_slot(&String::from("metallicRoughnessMap"), 2);
+            shader_program.set_sampler_slot(&String::from("material.metallicRoughnessMap"), 2);
+            shader_program.set_bool(&String::from("material.hasMetallicRoughnessMap"), true);
+        } else {
+            shader_program.set_bool(&String::from("material.hasMetallicRoughnessMap"), false);
         }
+
+        shader_program.set_float(&String::from("material.occlusionStrength"), self.material_properties.as_ref().occlusion_strength);
         if let Some(occlusion_texture) = &self.occlusion_texture {
             occlusion_texture.bind(3);
-            shader_program.set_sampler_slot(&String::from("occlusionMap"), 3);
+            shader_program.set_sampler_slot(&String::from("material.occlusionMap"), 3);
+            shader_program.set_bool(&String::from("material.hasOcclusionMap"), true);
+        } else {
+            shader_program.set_bool(&String::from("material.hasOcclusionMap"), false);
         }
+
+        shader_program.set_float3(&String::from("material.emissiveFactor"), self.material_properties.as_ref().emissive_factor);
         if let Some(emissive_texture) = &self.emissive_texture {
             emissive_texture.bind(4);
-            shader_program.set_sampler_slot(&String::from("emissiveMap"), 4);
+            shader_program.set_sampler_slot(&String::from("material.emissiveMap"), 4);
+            shader_program.set_bool(&String::from("material.hasEmissiveMap"), true);
+        } else {
+            shader_program.set_bool(&String::from("material.hasEmissiveMap"), false);
         }
     }
 }

@@ -41,7 +41,7 @@ pub use camera::*;
 
 pub struct GLModel {
     pub meshes: Vec<GLMesh>,
-    pub materials: Vec<GLMaterial>
+    pub materials: Vec<GLMaterial>,
 }
 
 #[derive(PartialEq, Clone, Debug, Copy)]
@@ -106,6 +106,7 @@ impl System for Graphics {
     }
 
     fn update(&mut self) {
+        self.pre_render();
         self.render();
         self.post_render();
 
@@ -189,7 +190,7 @@ impl Graphics {
 
                 let mut materials: Vec<GLMaterial> = Vec::new();
                 for material in model.as_ref().materials.iter() {
-                    materials.push(GLMaterial::new(material));
+                    materials.push(GLMaterial::new(material.clone()));
                 }
 
                 let gl_model = GLModel {
@@ -233,6 +234,10 @@ impl Graphics {
     fn resize(&mut self, dimensions: Int2) {
         gl_viewport(dimensions);
         self.imgui.resize(dimensions);
+    }
+
+    fn pre_render(&mut self) {
+
     }
 
     fn render(&mut self) {
