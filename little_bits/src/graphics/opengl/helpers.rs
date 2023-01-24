@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 extern crate gl;
 pub use gl::types::*;
 
@@ -9,11 +7,6 @@ use glfw::Window;
 use std::{mem, collections::HashMap};
 pub use std::ffi::*;
 pub use crate::maths::*;
-
-pub fn gl_init(window: &mut Window) {
-    gl::load_with(|s| window.get_proc_address(s) as *const _);
-    gl_check();
-}
 
 fn gl_check() {
     unsafe {
@@ -29,6 +22,11 @@ fn gl_check() {
             _ => panic!("GL unkown error."),
         }
     }
+}
+
+pub fn gl_init(window: &mut Window) {
+    gl::load_with(|s| window.get_proc_address(s) as *const _);
+    gl_check();
 }
 
 /*****************************************************************************

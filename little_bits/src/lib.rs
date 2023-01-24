@@ -4,8 +4,7 @@
 #![crate_name = "little_bits"]
 #![feature(thread_local)]
 #![feature(panic_info_message)]
-
-//pub extern crate imgui;
+#![allow(dead_code)]
 
 #[path = "maths/maths.rs"] pub mod maths;
 pub use maths::*;

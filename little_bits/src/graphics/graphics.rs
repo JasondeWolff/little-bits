@@ -36,6 +36,9 @@ pub extern crate imgui;
 #[path = "opengl/opengl.rs"] pub mod opengl;
 use opengl::*;
 
+#[path = "opencl/opencl.rs"] pub mod opencl;
+use opencl::*;
+
 pub mod camera;
 pub use camera::*;
 
@@ -54,6 +57,8 @@ pub struct Graphics {
     glfw: Glfw,
     window: Window,
     window_events: Receiver<(f64, WindowEvent)>,
+
+    cl_context: CLContext,
 
     pub(crate) imgui: ImGui,
 
@@ -84,6 +89,8 @@ impl System for Graphics {
         gl_enable_depth();
         gl_cull(gl::BACK);
 
+        let cl_context = CLContext::new(&mut window);
+
         let vertex_shader_src = app().resources().get_text(String::from("assets/shaders/vert.glsl"));
         let vertex_shader = GLShader::new(GLShaderType::VERTEX, &vertex_shader_src.as_ref());
         let fragment_shader_src = app().resources().get_text(String::from("assets/shaders/frag.glsl"));
@@ -98,6 +105,7 @@ impl System for Graphics {
             glfw: glfw,
             window: window,
             window_events: events,
+            cl_context: cl_context,
             imgui: imgui,
             render_camera: Shared::empty(),
             dynamic_models: HashMap::new(),

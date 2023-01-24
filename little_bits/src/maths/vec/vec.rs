@@ -186,6 +186,18 @@ lerp_impl!(Vector4, x, y, z, w);
 
 // Mint & ImGui compatability
 
+impl<'a, T: Float + Default> From<mint::Vector2<T>> for Vector2<T> {
+    fn from(mint_vec: mint::Vector2<T>) -> Vector2<T> {
+        Vector2::new(mint_vec.x, mint_vec.y)
+    }
+}
+
+impl<'a, T: Float + Default> Into<mint::Vector2<T>> for Vector2<T> {
+    fn into(self) -> mint::Vector2<T> {
+        [self.x, self.y].into()
+    }
+}
+
 impl<'a, T: Float + Default> From<mint::Vector3<T>> for Vector3<T> {
     fn from(mint_vec: mint::Vector3<T>) -> Vector3<T> {
         Vector3::new(mint_vec.x, mint_vec.y, mint_vec.z)

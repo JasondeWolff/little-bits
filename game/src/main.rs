@@ -34,6 +34,7 @@ impl Game for Example {
 
         self.camera = app().graphics().create_camera();
         app().graphics().set_render_camera(self.camera.clone());
+        self.camera.as_mut().set_translation(Float3::new(-0.54, 0.0, 0.54));
 
         self.model = app().resources().get_model(String::from("assets/test_models/DamagedHelmet/glTF/DamagedHelmet.gltf"));
         self.instance = app().graphics().create_dynamic_model_instance(self.model.clone(), None);
@@ -41,7 +42,7 @@ impl Game for Example {
         let rotation = Quaternion::from(Float3::new(-90.0, 0.0, 0.0));
         let transform = &mut self.instance.as_mut().transform;
         transform.set_rotation(rotation);
-        transform.set_translation(Float3::new(0.0, 0.0, -5.0));
+        transform.set_translation(Float3::new(0.0, 0.0, -1.0));
     }
     
     fn update(&mut self, delta_time: f32) {
@@ -76,8 +77,8 @@ impl Game for Example {
     }
 
     fn debug_ui(&mut self, ui: &mut DebugUI) {
-        ui.window("Hello world")
-        .size([300.0, 600.0], imgui::Condition::FirstUseEver)
+        ui.window("PBR Shader")
+        .size([400.0, 700.0], imgui::Condition::FirstUseEver)
         .build(|| {
             let material = &mut self.model.as_mut().materials[0];
             let mut material = material.as_mut();
