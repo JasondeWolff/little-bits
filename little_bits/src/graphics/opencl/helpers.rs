@@ -1,10 +1,15 @@
 extern crate cl3;
 pub use cl3::types::*;
+use std::ffi::{c_void, CString, CStr};
+use std::rc::Rc;
 
 use windows::Win32::Graphics::OpenGL::wglGetCurrentDC;
 
 extern crate glfw;
 use glfw::Window;
+
+use crate::Int2;
+use crate::graphics::opengl::texture2d::GLTexture2D;
 
 fn cl_check<T>(result: Result<T, cl_int>) -> T {
     match result {
@@ -67,6 +72,7 @@ fn cl_check<T>(result: Result<T, cl_int>) -> T {
 }
 
 pub struct CLContext {
+    device: cl_device_id,
     context: cl_context
 }
 
@@ -106,8 +112,17 @@ impl CLContext {
         let context = cl_check(cl3::context::create_context(&[device_id], context_properties.as_ptr(), None, std::ptr::null_mut()));
 
         CLContext {
+            device: device_id,
             context: context
         }
+    }
+
+    pub fn device_handle(&self) -> cl_device_id {
+        self.device
+    }
+
+    pub fn context_handle(&self) -> cl_context {
+        self.context
     }
 }
 
@@ -115,6 +130,223 @@ impl Drop for CLContext {
     fn drop(&mut self) {
         unsafe {
             cl_check(cl3::context::release_context(self.context));
+        }
+    }
+}
+
+pub struct CLProgram {
+    program: cl_program
+}
+
+impl CLProgram {
+    pub fn new(context: &CLContext, source: &String) -> Self {
+        let program = cl_check(cl3::program::create_program_with_source(context.context_handle(), &[source.as_str()]));
+
+        match cl3::program::build_program(program, &[context.device_handle()], CString::new("").unwrap().as_c_str(), None, std::ptr::null_mut()) {
+            Err(_) => {
+                let log = cl_check(cl3::program::get_program_build_info(program, context.device_handle(), cl3::program::CL_PROGRAM_BUILD_LOG));
+                let log: String = log.into();
+
+                panic!("Failed to build CLProgram. \nError:\n\n {}", log);
+            },
+            Ok(_) => {}
+        }
+
+        CLProgram {
+            program: program
+        }
+    }
+
+    pub fn handle(&self) -> cl_program {
+        self.program
+    }
+}
+
+impl Drop for CLProgram {
+    fn drop(&mut self) {
+        unsafe {
+            cl_check(cl3::program::release_program(self.program));
+        }
+    }
+}
+
+pub struct CLKernel {
+    kernel: cl_kernel
+}
+
+impl CLKernel {
+    pub fn new(program: CLProgram, name: &String) -> Self {
+        let mut name = name.clone();
+        name.push('\0');
+        let cname = unsafe { CString::from_raw(name.as_mut_ptr() as *mut i8) };
+
+        let kernel = cl_check(cl3::kernel::create_kernel(program.handle(), cname.as_c_str()));
+
+        CLKernel {
+            kernel: kernel
+        }
+    }
+
+    pub fn handle(&self) -> cl_kernel {
+        self.kernel
+    }
+
+    pub fn set_arg_buffer(&self, idx: u32, buffer: CLBuffer) {
+        unsafe {
+            let buffer_ptr_ptr: *mut *mut c_void = &mut buffer.handle();
+            cl_check(cl3::kernel::set_kernel_arg(self.kernel, idx, std::mem::size_of::<cl_mem>(), std::mem::transmute(buffer_ptr_ptr)));
+        }
+    }
+
+    pub fn set_arg_int(&self, idx: u32, value: i32) {
+        unsafe {
+            cl_check(cl3::kernel::set_kernel_arg(self.kernel, idx, std::mem::size_of::<i32>(), &value as *const i32 as *const c_void));
+        }
+    }
+}
+
+impl Drop for CLKernel {
+    fn drop(&mut self) {
+        unsafe {
+            cl_check(cl3::kernel::release_kernel(self.kernel));
+        }
+    }
+}
+
+pub struct CLCommandQueue {
+    command_queue: cl_command_queue
+}
+
+impl CLCommandQueue {
+    pub fn new(context: &CLContext) -> Self {
+        let command_queue = unsafe {
+            cl_check(cl3::command_queue::create_command_queue(context.context_handle(), context.device_handle(), 0))
+        };
+
+        CLCommandQueue {
+            command_queue: command_queue
+        }
+    }
+
+    pub fn handle(&self) -> cl_command_queue {
+        self.command_queue
+    }
+
+    pub fn execute(&self, kernel: &CLKernel, work_dim: u32, global_work_dims: &Int2) {
+        unsafe {
+            cl_check(cl3::command_queue::enqueue_nd_range_kernel(self.command_queue, kernel.handle(), work_dim, std::ptr::null(), &global_work_dims.x as *const i32 as *const usize, std::ptr::null(), 0, std::ptr::null()));
+        }
+    }
+
+    pub fn finish(&self) {
+        cl_check(cl3::command_queue::finish(self.command_queue));
+    }
+
+    pub fn acquire_gl_texture(&self, texture: CLGLTexture2D) {
+        unsafe {
+            let texture_ptr_ptr: *mut *mut c_void = &mut texture.handle();
+            cl_check(cl3::gl::enqueue_acquire_gl_objects(self.command_queue, 1, std::mem::transmute(texture_ptr_ptr), 0, std::ptr::null()));
+        }
+    }
+
+    pub fn release_gl_texture(&self, texture: CLGLTexture2D) {
+        unsafe {
+            let texture_ptr_ptr: *mut *mut c_void = &mut texture.handle();
+            cl_check(cl3::gl::enqueue_release_gl_objects(self.command_queue, 1, std::mem::transmute(texture_ptr_ptr), 0, std::ptr::null()));
+        }
+    }
+
+    pub fn write_buffer(&self, buffer: &CLBuffer, data: *mut c_void) {
+        unsafe {
+            cl_check(cl3::command_queue::enqueue_write_buffer(self.command_queue, buffer.handle(), CL_FALSE, 0, buffer.size(), data, 0, std::ptr::null_mut()));
+        }
+    }
+}
+
+impl Drop for CLCommandQueue {
+    fn drop(&mut self) {
+        unsafe {
+            cl_check(cl3::command_queue::release_command_queue(self.command_queue));
+        }
+    }
+}
+
+pub enum CLBufferMode {
+    Read,
+    Write,
+    ReadWrite
+}
+
+pub struct CLBuffer {
+    mem: cl_mem,
+    size: usize
+}
+
+impl CLBuffer {
+    pub fn new(context: &CLContext, mode: CLBufferMode, size: usize) -> Self {
+        let buffer = unsafe {
+            let flags = match mode {
+                CLBufferMode::Read => cl3::memory::CL_MEM_READ_ONLY,
+                CLBufferMode::Write => cl3::memory::CL_MEM_READ_ONLY,
+                CLBufferMode::ReadWrite => cl3::memory::CL_MEM_READ_ONLY
+            };
+            cl_check(cl3::memory::create_buffer(context.context_handle(), flags, size, std::ptr::null_mut()))
+        };
+
+        CLBuffer {
+            mem: buffer,
+            size: size
+        }
+    }
+
+    pub fn handle(&self) -> cl_mem {
+        self.mem
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
+    }
+}
+
+impl Drop for CLBuffer {
+    fn drop(&mut self) {
+        unsafe {
+            cl_check(cl3::memory::release_mem_object(self.mem));
+        }
+    }
+}
+
+pub struct CLGLTexture2D {
+    mem: cl_mem,
+    tex: Rc<GLTexture2D>
+}
+
+impl CLGLTexture2D {
+    pub fn new(context: &CLContext, gl_texture: Rc<GLTexture2D>, mode: CLBufferMode) -> Self {
+        let buffer = unsafe {
+            let flags = match mode {
+                CLBufferMode::Read => cl3::memory::CL_MEM_READ_ONLY,
+                CLBufferMode::Write => cl3::memory::CL_MEM_READ_ONLY,
+                CLBufferMode::ReadWrite => cl3::memory::CL_MEM_READ_ONLY
+            };
+            cl_check(cl3::gl::create_from_gl_texture(context.context_handle(), flags, gl::TEXTURE_2D, 0, gl_texture.handle()))
+        };
+
+        CLGLTexture2D {
+            mem: buffer,
+            tex: gl_texture
+        }
+    }
+
+    pub fn handle(&self) -> cl_mem {
+        self.mem
+    }
+}
+
+impl Drop for CLGLTexture2D {
+    fn drop(&mut self) {
+        unsafe {
+            cl_check(cl3::memory::release_mem_object(self.mem));
         }
     }
 }

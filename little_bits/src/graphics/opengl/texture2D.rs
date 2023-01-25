@@ -52,6 +52,10 @@ impl GLTexture2D {
     pub fn unbind(&self) {
         gl_unbind_texture(gl::TEXTURE_2D);
     }
+
+    pub fn handle(&self) -> GLTextureBuffer {
+        self.buffer
+    }
 }
 
 impl Drop for GLTexture2D {

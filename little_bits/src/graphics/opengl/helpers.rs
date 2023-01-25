@@ -425,7 +425,7 @@ impl GLShaderProgram {
                     
                     let location: i32 = gl::GetUniformLocation(self.buffer, cname.as_ptr() as *const i8);
                     gl_check();
-                    if location < 1 {
+                    if location < 0 {
                         eprintln!("Failed to get uniform location. (Name: '{}')", name);
                     }
 
