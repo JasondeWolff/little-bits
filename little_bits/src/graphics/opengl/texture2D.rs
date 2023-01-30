@@ -7,7 +7,7 @@ use crate::resources::Image;
 use crate::Shared;
 
 pub struct GLTexture2D {
-    buffer: GLTextureBuffer
+    tex: GLTexture
 }
 
 impl GLTexture2D {
@@ -15,7 +15,7 @@ impl GLTexture2D {
         match image.try_as_ref() {
             Some(image) => {
                 let texture = GLTexture2D {
-                    buffer: gl_gen_texture()
+                    tex: GLTexture::new(gl::TEXTURE_2D)
                 };
         
                 texture.bind_slotless(); {
@@ -42,24 +42,18 @@ impl GLTexture2D {
 
     pub fn bind(&self, slot: u32) {
         gl_active_texture(slot);
-        gl_bind_texture(gl::TEXTURE_2D, self.buffer);
+        self.tex.bind();
     }
 
     pub fn bind_slotless(&self) {
-        gl_bind_texture(gl::TEXTURE_2D, self.buffer);
+        self.tex.bind();
     }
 
     pub fn unbind(&self) {
-        gl_unbind_texture(gl::TEXTURE_2D);
+        self.tex.unbind();
     }
 
-    pub fn handle(&self) -> GLTextureBuffer {
-        self.buffer
-    }
-}
-
-impl Drop for GLTexture2D {
-    fn drop(&mut self) {
-        gl_del_texture(self.buffer);
+    pub fn tex(&self) -> &GLTexture {
+        &self.tex
     }
 }

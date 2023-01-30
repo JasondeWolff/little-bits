@@ -9,6 +9,9 @@ use glfw::Window;
 extern crate gmaths;
 use gmaths::*;
 
+extern crate gl_wrapper;
+use gl_wrapper::*;
+
 use windows::Win32::Graphics::OpenGL::wglGetCurrentDC;
 
 fn cl_check<T>(result: Result<T, cl_int>) -> T {
@@ -319,25 +322,23 @@ impl Drop for CLBuffer {
 
 pub struct CLGLTexture2D {
     mem: cl_mem,
-    //tex: Rc<GLTexture2D>
 }
 
 impl CLGLTexture2D {
-    // pub fn new(context: &CLContext, gl_texture: Rc<GLTexture2D>, mode: CLBufferMode) -> Self {
-    //     let buffer = unsafe {
-    //         let flags = match mode {
-    //             CLBufferMode::Read => cl3::memory::CL_MEM_READ_ONLY,
-    //             CLBufferMode::Write => cl3::memory::CL_MEM_READ_ONLY,
-    //             CLBufferMode::ReadWrite => cl3::memory::CL_MEM_READ_ONLY
-    //         };
-    //         cl_check(cl3::gl::create_from_gl_texture(context.context_handle(), flags, gl::TEXTURE_2D, 0, gl_texture.handle()))
-    //     };
+    pub fn new(context: &CLContext, gl_texture: GLTexture, mode: CLBufferMode) -> Self {
+        let buffer = unsafe {
+            let flags = match mode {
+                CLBufferMode::Read => cl3::memory::CL_MEM_READ_ONLY,
+                CLBufferMode::Write => cl3::memory::CL_MEM_READ_ONLY,
+                CLBufferMode::ReadWrite => cl3::memory::CL_MEM_READ_ONLY
+            };
+            cl_check(cl3::gl::create_from_gl_texture(context.context_handle(), flags, gl_texture.target(), 0, gl_texture.handle()))
+        };
 
-    //     CLGLTexture2D {
-    //         mem: buffer,
-    //         tex: gl_texture
-    //     }
-    // }
+        CLGLTexture2D {
+            mem: buffer,
+        }
+    }
 
     pub fn handle(&self) -> cl_mem {
         self.mem

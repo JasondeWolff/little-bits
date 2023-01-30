@@ -1,4 +1,4 @@
-extern crate gl;
+pub extern crate gl;
 pub use gl::types::*;
 
 extern crate glfw;

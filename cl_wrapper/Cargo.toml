@@ -12,6 +12,7 @@ license = "MIT"
 cl3 = "0.9.1"
 glfw = "0.48.0"
 gmaths = { path = "../gmaths" }
+gl-wrapper = { path = "../gl_wrapper" }
 
 [dependencies.windows]
 version = "0.44.0"

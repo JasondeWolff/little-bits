@@ -7,39 +7,14 @@ use crate::*;
 pub type GLTextureBuffer = gl::types::GLuint;
 type GLTextureType = gl::types::GLenum;
 
+pub struct GLTexture {
+    buffer: GLTextureBuffer,
+    target: GLTextureType
+}
+
 /*****************************************************************************
-*                               HELPERS
+*                               FUNCS
 ******************************************************************************/
-
-pub fn gl_gen_texture() -> GLTextureBuffer {
-    unsafe {
-        let mut buffer: GLTextureBuffer = 0;
-        gl::GenTextures(1, &mut buffer as *mut GLTextureBuffer);
-        gl_check();
-        buffer
-    }
-}
-
-pub fn gl_del_texture(texture: GLTextureBuffer) {
-    unsafe {
-        gl::DeleteTextures(1, &texture as *const u32);
-        gl_check();
-    }
-}
-
-pub fn gl_bind_texture(target: GLTextureType, texture: GLTextureBuffer) {
-    unsafe {
-        gl::BindTexture(target, texture);
-        gl_check();
-    }
-}
-
-pub fn gl_unbind_texture(target: GLTextureType) {
-    unsafe {
-        gl::BindTexture(target, 0);
-        gl_check();
-    }
-}
 
 pub fn gl_tex_parami(target: GLTextureType, name: GLenum, param: u32) {
     unsafe {
@@ -65,6 +40,67 @@ pub fn gl_tex_image_2d(internal_format: u32, width: i32, height: i32, format: u3
 pub fn gl_active_texture(slot: u32) {
     unsafe {
         gl::ActiveTexture(gl::TEXTURE0 + slot);
+        gl_check();
+    }
+}
+
+/*****************************************************************************
+*                               IMPLEMENTATION
+******************************************************************************/
+
+impl GLTexture {
+    pub fn new(target: GLTextureType) -> Self {
+        GLTexture {
+            buffer: gl_gen_texture(),
+            target: target
+        }
+    }
+
+    pub fn bind(&self) {
+        unsafe {
+            gl::BindTexture(self.target, self.buffer);
+            gl_check();
+        }
+    }
+
+    pub fn unbind(&self) {
+        unsafe {
+            gl::BindTexture(self.target, 0);
+            gl_check();
+        }
+    }
+
+    pub fn handle(&self) -> GLTextureBuffer {
+        self.buffer
+    }
+
+    pub fn target(&self) -> GLTextureType {
+        self.target
+    }
+}
+
+impl Drop for GLTexture {
+    fn drop(&mut self) {
+        gl_del_texture(self.buffer);
+    }
+}
+
+/*****************************************************************************
+*                               HELPERS
+******************************************************************************/
+
+fn gl_gen_texture() -> GLTextureBuffer {
+    unsafe {
+        let mut buffer: GLTextureBuffer = 0;
+        gl::GenTextures(1, &mut buffer as *mut GLTextureBuffer);
+        gl_check();
+        buffer
+    }
+}
+
+fn gl_del_texture(texture: GLTextureBuffer) {
+    unsafe {
+        gl::DeleteTextures(1, &texture as *const u32);
         gl_check();
     }
 }
