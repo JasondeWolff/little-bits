@@ -1,11 +1,11 @@
-#[path = "helpers.rs"] mod helpers;
-use helpers::*;
+extern crate gl_wrapper;
+pub use gl_wrapper::*;
 
 use std::mem;
 use memoffset::offset_of;
 
 use crate::resources::Mesh;
-use crate::graphics::opengl::material::GLMaterial;
+use crate::graphics::opengl::*;
 
 pub struct GLModel {
     pub meshes: Vec<GLMesh>,

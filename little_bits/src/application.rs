@@ -1,6 +1,8 @@
 #[path = "graphics/graphics.rs"] pub mod graphics;
 pub use graphics::*;
-pub use graphics::opengl::DebugUI;
+
+extern crate gl_wrapper;
+pub use gl_wrapper::*;
 
 #[path = "resources/resources.rs"] pub mod resources;
 pub use resources::*;

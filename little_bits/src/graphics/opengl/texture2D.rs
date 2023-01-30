@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-#[path = "helpers.rs"] mod helpers;
-use helpers::*;
+extern crate gl_wrapper;
+pub use gl_wrapper::*;
 
 use crate::resources::Image;
 use crate::Shared;

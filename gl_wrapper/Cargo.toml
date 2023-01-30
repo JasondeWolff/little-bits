@@ -1,39 +1,25 @@
-###############################################################################
-#                                   GENERAL
-###############################################################################
-
 [package]
-name = "little-bits"
+name = "gl-wrapper"
 authors = ["Jason de Wolff"]
 version = "0.0.1"
 edition = "2021"
 homepage = "https://github.com/JasondeWolff/little-bits"
 repository = "https://github.com/JasondeWolff/little-bits"
-categories = ["graphics"]
+categories = ["compute", "games", "math", "gpu"]
 license = "MIT"
 
 [dependencies]
-rand = "0.3.*"
-num  = "0.1.*"
-memoffset = "0.8"
-bitmask-enum = "2.1.0"
-glfw = "0.48.0"
 gl = "0.14.0"
-stb_image = "0.2.4"
-cl3 = "0.9.1"
-gltf = "1.0.0"
+glfw = "0.48.0"
 imgui = "0.10.0"
-mint = "0.5.9"
 gmaths = { path = "../gmaths" }
-cl-wrapper = { path = "../cl_wrapper" }
-gl-wrapper = { path = "../gl_wrapper" }
 
 ###############################################################################
 #                               BUILD SETTINGS
 ###############################################################################
 
 [lib]
-name = "little_bits"
+name = "gl_wrapper"
 path = "src/lib.rs"
 
 [profile.dev]                           # Modify profile settings via config.

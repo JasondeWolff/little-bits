@@ -1,7 +1,6 @@
 extern crate glfw;
 use glfw::{Action, Context, Key, Glfw, Window, WindowEvent};
 
-use crate::gmaths::*;
 use crate::system::*;
 use crate::resources::Model;
 use crate::application::*;
@@ -33,8 +32,10 @@ Neural Mesh:
 
 pub extern crate imgui;
 
+extern crate gl_wrapper;
+pub use gl_wrapper::*;
 #[path = "opengl/opengl.rs"] pub mod opengl;
-use opengl::*;
+pub use opengl::*;
 
 mod nn;
 

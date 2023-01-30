@@ -1,15 +1,15 @@
 extern crate cl3;
 pub use cl3::types::*;
 use std::ffi::{c_void, CString};
-use std::rc::Rc;
-
-use windows::Win32::Graphics::OpenGL::wglGetCurrentDC;
+//use std::rc::Rc;
 
 extern crate glfw;
 use glfw::Window;
 
-use crate::Int2;
-use crate::graphics::opengl::texture2d::GLTexture2D;
+extern crate gmaths;
+use gmaths::*;
+
+use windows::Win32::Graphics::OpenGL::wglGetCurrentDC;
 
 fn cl_check<T>(result: Result<T, cl_int>) -> T {
     match result {
@@ -319,25 +319,25 @@ impl Drop for CLBuffer {
 
 pub struct CLGLTexture2D {
     mem: cl_mem,
-    tex: Rc<GLTexture2D>
+    //tex: Rc<GLTexture2D>
 }
 
 impl CLGLTexture2D {
-    pub fn new(context: &CLContext, gl_texture: Rc<GLTexture2D>, mode: CLBufferMode) -> Self {
-        let buffer = unsafe {
-            let flags = match mode {
-                CLBufferMode::Read => cl3::memory::CL_MEM_READ_ONLY,
-                CLBufferMode::Write => cl3::memory::CL_MEM_READ_ONLY,
-                CLBufferMode::ReadWrite => cl3::memory::CL_MEM_READ_ONLY
-            };
-            cl_check(cl3::gl::create_from_gl_texture(context.context_handle(), flags, gl::TEXTURE_2D, 0, gl_texture.handle()))
-        };
+    // pub fn new(context: &CLContext, gl_texture: Rc<GLTexture2D>, mode: CLBufferMode) -> Self {
+    //     let buffer = unsafe {
+    //         let flags = match mode {
+    //             CLBufferMode::Read => cl3::memory::CL_MEM_READ_ONLY,
+    //             CLBufferMode::Write => cl3::memory::CL_MEM_READ_ONLY,
+    //             CLBufferMode::ReadWrite => cl3::memory::CL_MEM_READ_ONLY
+    //         };
+    //         cl_check(cl3::gl::create_from_gl_texture(context.context_handle(), flags, gl::TEXTURE_2D, 0, gl_texture.handle()))
+    //     };
 
-        CLGLTexture2D {
-            mem: buffer,
-            tex: gl_texture
-        }
-    }
+    //     CLGLTexture2D {
+    //         mem: buffer,
+    //         tex: gl_texture
+    //     }
+    // }
 
     pub fn handle(&self) -> cl_mem {
         self.mem

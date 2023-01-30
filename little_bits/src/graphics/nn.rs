@@ -1,7 +1,8 @@
 use glfw::Window;
 
-#[path = "opencl/opencl.rs"] mod opencl;
-use opencl::*;
+extern crate cl_wrapper;
+use cl_wrapper::*;
+
 #[path = "opengl/opengl.rs"] mod opengl;
 use opengl::*;
 
@@ -43,6 +44,6 @@ impl Baker {
         let camera = Camera::new();
         let (min, max) = model.bounds();
 
-        
+
     }
 }

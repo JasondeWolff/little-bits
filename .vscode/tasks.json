@@ -5,6 +5,8 @@
             "label": "cargo build",
             "dependsOn": [
                 "cargo build gmaths",
+                "cargo build cl_wrapper",
+                "cargo build gl_wrapper",
                 "cargo build little-bits",
                 "cargo build game"
             ]
@@ -13,6 +15,8 @@
             "label": "cargo build release",
             "dependsOn": [
                 "cargo build gmaths release",
+                "cargo build cl_wrapper release",
+                "cargo build gl_wrapper release",
                 "cargo build little-bits release",
                 "cargo build game release"
             ]
@@ -45,6 +49,66 @@
             ],
             "options": {
                 "cwd": "${workspaceFolder}/gmaths/"
+            },
+        },
+
+        {
+            "label": "cargo build cl_wrapper",
+            "type": "cargo",
+            "command": "build",
+            "args": [
+                "--lib"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/cl_wrapper/"
+            },
+        },
+        {
+            "label": "cargo build cl_wrapper release",
+            "type": "cargo",
+            "command": "build",
+            "args": [
+                "--release",
+                "--lib"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/cl_wrapper/"
+            },
+        },
+
+        {
+            "label": "cargo build gl_wrapper",
+            "type": "cargo",
+            "command": "build",
+            "args": [
+                "--lib"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/gl_wrapper/"
+            },
+        },
+        {
+            "label": "cargo build gl_wrapper release",
+            "type": "cargo",
+            "command": "build",
+            "args": [
+                "--release",
+                "--lib"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/gl_wrapper/"
             },
         },
 
