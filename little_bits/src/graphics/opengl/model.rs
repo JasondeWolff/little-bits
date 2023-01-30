@@ -5,6 +5,33 @@ use std::mem;
 use memoffset::offset_of;
 
 use crate::resources::Mesh;
+use crate::graphics::opengl::material::GLMaterial;
+
+pub struct GLModel {
+    pub meshes: Vec<GLMesh>,
+    pub materials: Vec<GLMaterial>,
+}
+
+impl GLModel {
+    pub fn new(meshes: Vec<GLMesh>, materials: Vec<GLMaterial>) -> Self {
+        GLModel {
+            meshes: meshes,
+            materials: materials
+        }
+    }
+
+    pub fn bounds(&self) -> (Float3, Float3) {
+        let mut min = self.meshes[0].min;
+        let mut max = self.meshes[0].max;
+
+        for mesh in &self.meshes {
+            min = min.min(mesh.min);
+            max = max.max(mesh.max);
+        }
+
+        (min, max)
+    }
+}
 
 pub struct GLMesh {
     vao: Option<GLVAO>,
@@ -13,6 +40,9 @@ pub struct GLMesh {
 
     index_count: usize,
     material_idx: usize,
+
+    min: Float3,
+    max: Float3
 }
 
 #[repr(C)]
@@ -65,7 +95,9 @@ impl GLMesh {
             vbo: Some(vbo),
             ebo: Some(ebo),
             index_count: indices.len(),
-            material_idx: mesh.material_idx
+            material_idx: mesh.material_idx,
+            min: mesh.min,
+            max: mesh.max
         }
     }
 

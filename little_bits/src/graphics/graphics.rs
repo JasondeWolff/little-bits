@@ -1,7 +1,7 @@
 extern crate glfw;
 use glfw::{Action, Context, Key, Glfw, Window, WindowEvent};
 
-use crate::maths::*;
+use crate::gmaths::*;
 use crate::system::*;
 use crate::resources::Model;
 use crate::application::*;
@@ -36,31 +36,23 @@ pub extern crate imgui;
 #[path = "opengl/opengl.rs"] pub mod opengl;
 use opengl::*;
 
-#[path = "opencl/opencl.rs"] pub mod opencl;
-use opencl::*;
+mod nn;
 
 pub mod camera;
 pub use camera::*;
 
-pub struct GLModel {
-    pub meshes: Vec<GLMesh>,
-    pub materials: Vec<GLMaterial>,
-}
-
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub struct ModelInstance {
     pub transform: Transform
-    // Material etc
 }
 
 pub struct Graphics {
     glfw: Glfw,
     window: Window,
     window_events: Receiver<(f64, WindowEvent)>,
-
-    cl_context: CLContext,
-
     pub(crate) imgui: ImGui,
+
+    nn_baker: nn::Baker,
 
     render_camera: Shared<Camera>,
     dynamic_models: HashMap<*const Model, (GLModel, Vec<Shared<ModelInstance>>)>,
@@ -89,7 +81,7 @@ impl System for Graphics {
         gl_enable_depth();
         gl_cull(gl::BACK);
 
-        let cl_context = CLContext::new(&mut window);
+        let nn_baker = nn::Baker::new(&mut window);
 
         let vertex_shader_src = app().resources().get_text(String::from("assets/shaders/vert.glsl"));
         let vertex_shader = GLShader::new(GLShaderType::VERTEX, &vertex_shader_src.as_ref());
@@ -105,8 +97,8 @@ impl System for Graphics {
             glfw: glfw,
             window: window,
             window_events: events,
-            cl_context: cl_context,
             imgui: imgui,
+            nn_baker: nn_baker,
             render_camera: Shared::empty(),
             dynamic_models: HashMap::new(),
             shader_program: shader_program
@@ -289,7 +281,6 @@ impl Graphics {
         }
 
         self.imgui.render();
-        //self.imgui.new_frame();
         self.window.swap_buffers();
     }
 

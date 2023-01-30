@@ -6,7 +6,7 @@ use glfw::Window;
 
 use std::{mem, collections::HashMap};
 pub use std::ffi::*;
-pub use crate::maths::*;
+pub use crate::gmaths::*;
 
 fn gl_check() {
     unsafe {
@@ -216,6 +216,15 @@ fn gl_gen_vert_array() -> GLBuffer {
     buffer
 }
 
+fn gl_gen_frame_buffer() -> GLBuffer {
+    let mut buffer: u32 = 0;
+    unsafe {
+        gl::GenFramebuffers(1, &mut buffer);
+        gl_check();
+    }
+    buffer
+}
+
 fn gl_del_buffer(buffer: GLBuffer) {
     unsafe {
         gl::DeleteBuffers(1, &buffer);
@@ -226,6 +235,13 @@ fn gl_del_buffer(buffer: GLBuffer) {
 fn gl_del_vert_array(buffer: GLBuffer) {
     unsafe {
         gl::DeleteVertexArrays(1, &buffer);
+        gl_check();
+    }
+}
+
+fn gl_del_frame_buffer(buffer: GLBuffer) {
+    unsafe {
+        gl::DeleteFramebuffers(1, &buffer);
         gl_check();
     }
 }

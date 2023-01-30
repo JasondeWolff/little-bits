@@ -1,4 +1,4 @@
-use crate::maths::*;
+use crate::gmaths::Int2;
 
 #[derive(Clone)]
 pub struct Image {

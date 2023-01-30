@@ -1,19 +1,20 @@
 #![allow(dead_code)]
 
-#[path = "traits.rs"] pub mod traits;
+pub mod traits;
 pub use traits::*;
 
-#[path = "vec/vec.rs"] pub mod vec;
+pub mod vec;
 pub use vec::*;
-
-#[path = "mat/mat.rs"] pub mod mat;
+pub mod mat;
 pub use mat::*;
-
-#[path = "quat/quat.rs"] pub mod quat;
+pub mod quat;
 pub use quat::*;
-
-#[path = "transform/transform.rs"] pub mod transform;
+pub mod transform;
 pub use transform::*;
+
+/*****************************************************************************
+*                               TYPES
+******************************************************************************/
 
 pub type Float2 = Vector2<f32>;
 pub type Float3 = Vector3<f32>;

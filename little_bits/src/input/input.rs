@@ -1,5 +1,5 @@
 use crate::system::*;
-use crate::maths::*;
+use crate::gmaths::*;
 use crate::app;
 
 #[path = "input_codes.rs"] pub mod input_codes;

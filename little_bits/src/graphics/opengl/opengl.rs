@@ -1,14 +1,14 @@
-#[path = "helpers.rs"] pub mod helpers;
+pub mod helpers;
 pub use helpers::*;
 
-#[path = "mesh.rs"] pub mod mesh;
-pub use mesh::*;
+pub mod model;
+pub use model::*;
 
-#[path = "texture2d.rs"] pub mod texture2d;
+pub mod texture2d;
 pub use texture2d::*;
 
-#[path = "debug_ui.rs"] pub mod debug_ui;
+pub mod debug_ui;
 pub use debug_ui::*;
 
-#[path = "material.rs"] pub mod material;
+pub mod material;
 pub use material::*;

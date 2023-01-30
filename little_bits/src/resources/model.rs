@@ -1,4 +1,4 @@
-use crate::maths::*;
+use crate::gmaths::*;
 
 use crate::resources::Image;
 use crate::Shared;

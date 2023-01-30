@@ -27,3 +27,11 @@ pub trait Distance<V, R> {
 pub trait Lerp<V, R, N> {
     fn lerp(&self, b: V, t: N) -> R;
 }
+
+pub trait Min<V, R> {
+    fn min(&self, b: V) -> R;
+}
+
+pub trait Max<V, R> {
+    fn max(&self, b: V) -> R;
+}

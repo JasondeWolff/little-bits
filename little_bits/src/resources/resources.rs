@@ -8,7 +8,7 @@ use std::ffi::CString;
 use std::path::Path;
 
 use crate::system::*;
-use crate::maths::*;
+use crate::gmaths::*;
 use crate::Shared;
 
 #[path = "resource_manager.rs"] pub mod resource_manager;

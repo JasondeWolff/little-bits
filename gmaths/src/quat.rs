@@ -4,8 +4,8 @@ use rand::{Rand, Rng};
 use num::{Float};
 
 use crate::traits::*;
-use crate::maths::Matrix4;
-use crate::maths::Vector3;
+use crate::Matrix4;
+use crate::Vector3;
 
 macro_rules! t(
     ($v: expr) => (

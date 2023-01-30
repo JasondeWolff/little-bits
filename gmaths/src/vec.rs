@@ -5,7 +5,7 @@ use num::{Float};
 use std::f64::consts::FRAC_PI_2;
 
 use crate::traits::*;
-use crate::maths::Quaternion;
+use crate::Quaternion;
 
 #[path = "vec_macros.rs"] mod vec_macros;
 use vec_macros::*;
@@ -90,6 +90,7 @@ dot_impl!(Vector2, x, y);
 normalize_impl!(Vector2, x, y);
 distance_impl!(Vector2, x, y);
 lerp_impl!(Vector2, x, y);
+min_max_impl!(Vector2, x, y);
 
 // Vector3
 default_impl!(Vector3, x, y, z);
@@ -115,6 +116,7 @@ cross_impl!(Vector3, x, y, z);
 normalize_impl!(Vector3, x, y, z);
 distance_impl!(Vector3, x, y, z);
 lerp_impl!(Vector3, x, y, z);
+min_max_impl!(Vector3, x, y, z);
 
 macro_rules! t(
     ($v: expr) => (
@@ -183,6 +185,7 @@ dot_impl!(Vector4, x, y, z, w);
 normalize_impl!(Vector4, x, y, z, w);
 distance_impl!(Vector4, x, y, z, w);
 lerp_impl!(Vector4, x, y, z, w);
+min_max_impl!(Vector4, x, y, z, w);
 
 // Mint & ImGui compatability
 

@@ -639,3 +639,44 @@ macro_rules! lerp_impl(
     )
 );
 pub(crate) use lerp_impl;
+
+macro_rules! min_max_impl(
+    ($t: ident, $($compN: ident),+) => (
+        impl<N: Float> Min<$t<N>, $t<N>> for $t<N> {
+            #[inline]
+            fn min(&self, other: $t<N>) -> $t<N> {
+                $t {
+                    $($compN: || -> N { if self.$compN < other.$compN { self.$compN } else {other.$compN } }() ),+
+                }
+            }
+        }
+
+        impl<N: Float> Min<&mut $t<N>, $t<N>> for $t<N> {
+            #[inline]
+            fn min(&self, other: &mut $t<N>) -> $t<N> {
+                $t {
+                    $($compN: || -> N { if self.$compN < other.$compN { self.$compN } else {other.$compN } }() ),+
+                }
+            }
+        }
+
+        impl<N: Float> Max<$t<N>, $t<N>> for $t<N> {
+            #[inline]
+            fn max(&self, other: $t<N>) -> $t<N> {
+                $t {
+                    $($compN: || -> N { if self.$compN > other.$compN { self.$compN } else {other.$compN } }() ),+
+                }
+            }
+        }
+
+        impl<N: Float> Max<&mut $t<N>, $t<N>> for $t<N> {
+            #[inline]
+            fn max(&self, other: &mut $t<N>) -> $t<N> {
+                $t {
+                    $($compN: || -> N { if self.$compN > other.$compN { self.$compN } else {other.$compN } }() ),+
+                }
+            }
+        }
+    )
+);
+pub(crate) use min_max_impl;

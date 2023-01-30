@@ -4,6 +4,7 @@
         {
             "label": "cargo build",
             "dependsOn": [
+                "cargo build gmaths",
                 "cargo build little-bits",
                 "cargo build game"
             ]
@@ -11,9 +12,40 @@
         {
             "label": "cargo build release",
             "dependsOn": [
+                "cargo build gmaths release",
                 "cargo build little-bits release",
                 "cargo build game release"
             ]
+        },
+
+        {
+            "label": "cargo build gmaths",
+            "type": "cargo",
+            "command": "build",
+            "args": [
+                "--lib"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/gmaths/"
+            },
+        },
+        {
+            "label": "cargo build gmaths release",
+            "type": "cargo",
+            "command": "build",
+            "args": [
+                "--release",
+                "--lib"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/gmaths/"
+            },
         },
 
         {

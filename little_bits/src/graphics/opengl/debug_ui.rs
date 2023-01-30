@@ -6,8 +6,8 @@ pub type DebugUI = imgui::Ui;
 use gl::types::*;
 use std::mem;
 
-use crate::maths::Int2;
-use crate::maths::Float2;
+use crate::gmaths::Int2;
+use crate::gmaths::Float2;
 
 pub struct ImGui {
     context: imgui::Context,

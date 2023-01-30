@@ -1,8 +1,8 @@
 use num::Float;
 
-use crate::maths::Vector3;
-use crate::maths::Quaternion;
-use crate::maths::Matrix4;
+use crate::Vector3;
+use crate::Quaternion;
+use crate::Matrix4;
 
 #[derive(Eq, PartialEq, Clone, Hash, Debug, Copy)]
 pub struct Transform3D<T: Float> {

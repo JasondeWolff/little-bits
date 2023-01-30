@@ -1,6 +1,6 @@
 extern crate cl3;
 pub use cl3::types::*;
-use std::ffi::{c_void, CString, CStr};
+use std::ffi::{c_void, CString};
 use std::rc::Rc;
 
 use windows::Win32::Graphics::OpenGL::wglGetCurrentDC;
@@ -175,10 +175,11 @@ pub struct CLKernel {
 }
 
 impl CLKernel {
-    pub fn new(program: CLProgram, name: &String) -> Self {
+    pub fn new(program: &CLProgram, name: &String) -> Self {
         let mut name = name.clone();
         name.push('\0');
         let cname = unsafe { CString::from_raw(name.as_mut_ptr() as *mut i8) };
+        std::mem::forget(name);
 
         let kernel = cl_check(cl3::kernel::create_kernel(program.handle(), cname.as_c_str()));
 

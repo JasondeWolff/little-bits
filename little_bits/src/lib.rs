@@ -6,8 +6,8 @@
 #![feature(panic_info_message)]
 #![allow(dead_code)]
 
-#[path = "maths/maths.rs"] pub mod maths;
-pub use maths::*;
+extern crate gmaths;
+pub use gmaths::*;
 
 #[path = "system.rs"] pub mod system;
 pub use system::*;

@@ -1,6 +1,4 @@
-use crate::maths::Float3;
-use crate::maths::Quat;
-use crate::maths::Float4x4;
+use crate::gmaths::*;
 use crate::app;
 
 #[derive(Clone)]
