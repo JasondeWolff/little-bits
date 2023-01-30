@@ -44,6 +44,6 @@ impl Baker {
         let camera = Camera::new();
         let (min, max) = model.bounds();
 
-
+        
     }
 }
