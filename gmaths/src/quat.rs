@@ -1,4 +1,4 @@
-use std::ops::{Mul, AddAssign, MulAssign, Index, IndexMut};
+use std::ops::{Mul, AddAssign, MulAssign, Index, IndexMut, DivAssign};
 use std::mem;
 use rand::{Rand, Rng};
 use num::{Float};
@@ -73,6 +73,66 @@ impl<T: Float> Quaternion<T> {
             z: axis.z * sha,
             w: (rangle * t!(0.5)).cos()
         }
+    }
+}
+
+impl<T: Float + Default + AddAssign<T> + DivAssign<T>> Quaternion<T> {
+    #[inline]
+    pub fn look_rotation(forward: Vector3<T>, up: Vector3<T>) -> Quaternion<T> {
+        let forward = forward.normalized();
+        let right = up.cross(forward).normalized();
+        let up = forward.cross(right);
+
+        let m00 = right.x;
+        let m01 = right.y;
+        let m02 = right.z;
+        let m10 = up.x;
+        let m11 = up.y;
+        let m12 = up.z;
+        let m20 = forward.x;
+        let m21 = forward.y;
+        let m22 = forward.z;
+        let num8 = (m00 + m11) + m22;
+
+        let mut quaternion = Quaternion::default();
+        if num8 > t!(0.0)
+        {
+        	let mut num = (num8 + t!(1.0)).sqrt();
+        	quaternion.w = num * t!(0.5);
+        	num = t!(0.5) / num;
+        	quaternion.x = (m12 - m21) * num;
+        	quaternion.y = (m20 - m02) * num;
+        	quaternion.z = (m01 - m10) * num;
+        	return quaternion;
+        }
+        if (m00 >= m11) && (m00 >= m22)
+        {
+        	let num7 = (((t!(1.0) + m00) - m11) - m22).sqrt();
+        	let num4 = t!(0.5) / num7;
+        	quaternion.x = t!(0.5) * num7;
+        	quaternion.y = (m01 + m10) * num4;
+        	quaternion.z = (m02 + m20) * num4;
+        	quaternion.w = (m12 - m21) * num4;
+        	return quaternion;
+        }
+        if m11 > m22
+        {
+        	let num6 = (((t!(1.0) + m11) - m00) - m22).sqrt();
+        	let num3 = t!(0.5) / num6;
+        	quaternion.x = (m10 + m01) * num3;
+        	quaternion.y = t!(0.5) * num6;
+        	quaternion.z = (m21 + m12) * num3;
+        	quaternion.w = (m20 - m02) * num3;
+        	return quaternion;
+        }
+
+        let num5 = (((t!(1.0) + m22) - m00) - m11).sqrt();
+        let num2 = t!(0.5) / num5;
+        quaternion.x = (m20 + m02) * num2;
+        quaternion.y = (m21 + m12) * num2;
+        quaternion.z = t!(0.5) * num5;
+        quaternion.w = (m01 - m10) * num2;
+        return quaternion;
     }
 }
 

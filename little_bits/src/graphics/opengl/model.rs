@@ -7,13 +7,26 @@ use memoffset::offset_of;
 use crate::resources::Mesh;
 use crate::graphics::opengl::*;
 
+use crate::resources::Model;
+use crate::Shared;
+
 pub struct GLModel {
     pub meshes: Vec<GLMesh>,
     pub materials: Vec<GLMaterial>,
 }
 
 impl GLModel {
-    pub fn new(meshes: Vec<GLMesh>, materials: Vec<GLMaterial>) -> Self {
+    pub fn new(model: &Shared<Model>) -> Self {
+        let mut meshes: Vec<GLMesh> = Vec::new();
+        for mesh in model.as_ref().meshes.iter() {
+            meshes.push(GLMesh::new(mesh));
+        }
+
+        let mut materials: Vec<GLMaterial> = Vec::new();
+        for material in model.as_ref().materials.iter() {
+            materials.push(GLMaterial::new(material.clone()));
+        }
+
         GLModel {
             meshes: meshes,
             materials: materials

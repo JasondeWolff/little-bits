@@ -325,7 +325,7 @@ pub struct CLGLTexture2D {
 }
 
 impl CLGLTexture2D {
-    pub fn new(context: &CLContext, gl_texture: GLTexture, mode: CLBufferMode) -> Self {
+    pub fn new(context: &CLContext, gl_texture: &GLTexture, mode: CLBufferMode) -> Self {
         let buffer = unsafe {
             let flags = match mode {
                 CLBufferMode::Read => cl3::memory::CL_MEM_READ_ONLY,

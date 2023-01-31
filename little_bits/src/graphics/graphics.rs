@@ -42,6 +42,8 @@ mod nn;
 pub mod camera;
 pub use camera::*;
 
+use self::nn::BakeParameters;
+
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub struct ModelInstance {
     pub transform: Transform
@@ -184,26 +186,25 @@ impl Graphics {
                 models.1.push(model_instance.clone());
             },
             None => {
-                let mut meshes: Vec<GLMesh> = Vec::new();
-                for mesh in model.as_ref().meshes.iter() {
-                    meshes.push(GLMesh::new(mesh));
-                }
-
-                let mut materials: Vec<GLMaterial> = Vec::new();
-                for material in model.as_ref().materials.iter() {
-                    materials.push(GLMaterial::new(material.clone()));
-                }
-
-                let gl_model = GLModel {
-                    meshes: meshes,
-                    materials: materials
+                // TEMPORARY!!
+                let bake_params = BakeParameters {
+                    epochs: 50,
+                    sample_positions: 200,
+                    sample_distribution: nn::BakeSampleDistribution::Random
                 };
+                self.bake_nemo(model.clone(), &bake_params);
 
+                let gl_model = GLModel::new(&model);
                 self.dynamic_models.insert(model_ptr, (gl_model, vec![model_instance.clone()]));
             }
         }
 
         model_instance
+    }
+
+    pub fn bake_nemo(&mut self, model: Shared<Model>, params: &BakeParameters) {
+        let gl_model = GLModel::new(&model);
+        self.nn_baker.bake(&gl_model, params);
     }
 }
 

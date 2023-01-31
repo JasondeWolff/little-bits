@@ -22,6 +22,9 @@ pub struct GLFBO {
     buffer: GLBuffer
 }
 
+pub struct GLRBO {
+    buffer: GLBuffer
+}
 
 /*****************************************************************************
 *                               FUNCS
@@ -38,6 +41,24 @@ pub fn gl_enable_vertex_attrib_array(index: u32) {
     unsafe {
         gl::EnableVertexAttribArray(index);
         gl_check();
+    }
+}
+
+pub fn gl_frame_buffer_texture_2d(texture: &GLTexture, attachment: GLenum) {
+    unsafe {
+        gl::FramebufferTexture2D(gl::FRAMEBUFFER, attachment, gl::TEXTURE_2D, texture.handle(), 0);
+    }
+}
+
+pub fn gl_render_buffer_storage(format: GLenum, width: i32, height: i32) {
+    unsafe {
+        gl::RenderbufferStorage(gl::RENDERBUFFER, format, width, height);
+    }
+}
+
+pub fn gl_frame_buffer_render_buffer(rbo: &GLRBO, attachment: GLenum) {
+    unsafe {
+        gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, attachment, gl::RENDERBUFFER, rbo.handle());
     }
 }
 
@@ -169,8 +190,6 @@ impl IGLBuffer for GLFBO {
         unsafe {
             gl::BindFramebuffer(gl::FRAMEBUFFER, self.buffer);
             gl_check();
-
-            assert_eq!(gl::CheckFramebufferStatus(gl::FRAMEBUFFER), gl::FRAMEBUFFER_COMPLETE, "Failed to bind frame buffer.");
         }
     }
 
@@ -186,9 +205,55 @@ impl IGLBuffer for GLFBO {
     }
 }
 
+impl GLFBO {
+    pub fn check_status(&self) {
+        unsafe {
+            assert_eq!(gl::CheckFramebufferStatus(gl::FRAMEBUFFER), gl::FRAMEBUFFER_COMPLETE, "Failed to bind frame buffer.");
+        }
+    }
+}
+
 impl Drop for GLFBO {
     fn drop(&mut self) {
         gl_del_frame_buffer(self.buffer);
+    }
+}
+
+impl IGLBuffer for GLRBO {
+    fn new() -> Self {
+        GLRBO {
+            buffer: gl_gen_render_buffer()
+        }
+    }
+
+    fn bind(&self) {
+        unsafe {
+            gl::BindRenderbuffer(gl::RENDERBUFFER, self.buffer);
+            gl_check();
+        }
+    }
+
+    fn unbind(&self) {
+        unsafe {
+            gl::BindRenderbuffer(gl::RENDERBUFFER, 0);
+            gl_check();
+        }
+    }
+
+    fn set_data(&self, _: usize, _: *mut c_void) {
+        panic!("Failed to set data on RBO. (Should never be called)");
+    }
+}
+
+impl GLRBO {
+    pub fn handle(&self) -> GLBuffer {
+        self.buffer
+    }
+}
+
+impl Drop for GLRBO {
+    fn drop(&mut self) {
+        gl_del_render_buffer(self.buffer);
     }
 }
 
@@ -223,6 +288,15 @@ fn gl_gen_frame_buffer() -> GLBuffer {
     buffer
 }
 
+fn gl_gen_render_buffer() -> GLBuffer {
+    let mut buffer: u32 = 0;
+    unsafe {
+        gl::GenRenderbuffers(1, &mut buffer);
+        gl_check();
+    }
+    buffer
+}
+
 fn gl_del_buffer(buffer: GLBuffer) {
     unsafe {
         gl::DeleteBuffers(1, &buffer);
@@ -240,6 +314,13 @@ fn gl_del_vert_array(buffer: GLBuffer) {
 fn gl_del_frame_buffer(buffer: GLBuffer) {
     unsafe {
         gl::DeleteFramebuffers(1, &buffer);
+        gl_check();
+    }
+}
+
+fn gl_del_render_buffer(buffer: GLBuffer) {
+    unsafe {
+        gl::DeleteRenderbuffers(1, &buffer);
         gl_check();
     }
 }
