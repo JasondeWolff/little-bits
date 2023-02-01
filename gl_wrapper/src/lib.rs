@@ -72,9 +72,16 @@ pub fn gl_viewport(dimensions: Int2) {
     }
 }
 
-pub fn gl_draw_elems(mode: gl::types::GLenum, count: usize, index_type: gl::types::GLenum) {
+pub fn gl_draw_elems(mode: GLenum, count: usize, index_type: GLenum) {
     unsafe {
         gl::DrawElements(mode, count as i32, index_type, std::ptr::null());
+        gl_check();
+    }
+}
+
+pub fn gl_draw_arrays(mode: GLenum, offset: usize, count: usize) {
+    unsafe {
+        gl::DrawArrays(mode, offset as i32, count as i32);
         gl_check();
     }
 }

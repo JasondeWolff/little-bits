@@ -1,7 +1,8 @@
-use glfw::Window;
+use glfw::{Window, Context, Glfw};
 
 extern crate cl_wrapper;
 use cl_wrapper::*;
+use rand::distributions::normal;
 
 use crate::graphics::opengl::*;
 use rand::Rng;
@@ -15,7 +16,10 @@ pub struct Baker {
     command_queue: CLCommandQueue,
     program: CLProgram,
     kernel: CLKernel,
-    shader_program: GLShaderProgram
+    shader_program: GLShaderProgram,
+
+    display_shader_program: GLShaderProgram,
+    display_vao: GLVAO
 }
 
 pub enum BakeSampleDistribution {
@@ -26,7 +30,19 @@ pub enum BakeSampleDistribution {
 pub struct BakeParameters {
     pub epochs: usize,
     pub sample_positions: usize,
-    pub sample_distribution: BakeSampleDistribution
+    pub sample_distribution: BakeSampleDistribution,
+    pub sample_resolution: usize
+}
+
+impl Default for BakeParameters {
+    fn default() -> Self {
+        BakeParameters {
+            epochs: 100,
+            sample_positions: 300,
+            sample_distribution: BakeSampleDistribution::Random,
+            sample_resolution: 1024
+        }
+    }
 }
 
 impl Baker {
@@ -37,18 +53,33 @@ impl Baker {
         let program = CLProgram::new(&context, &program_src.as_ref());
         let kernel = CLKernel::new(&program, &String::from("render"));
 
-        let vertex_shader_src = app().resources().get_text(String::from("assets/shaders/vert.glsl"));
-        let vertex_shader = GLShader::new(GLShaderType::VERTEX, &vertex_shader_src.as_ref());
-        let fragment_shader_src = app().resources().get_text(String::from("assets/shaders/frag.glsl"));
-        let fragment_shader = GLShader::new(GLShaderType::FRAGMENT, &fragment_shader_src.as_ref());
-        let shader_program = GLShaderProgram::new(&vertex_shader, &fragment_shader);
+        let shader_program;
+        {
+            let vertex_shader_src = app().resources().get_text(String::from("assets/shaders/vert.glsl"));
+            let vertex_shader = GLShader::new(GLShaderType::VERTEX, &vertex_shader_src.as_ref());
+            let fragment_shader_src = app().resources().get_text(String::from("assets/shaders/bake_frag.glsl"));
+            let fragment_shader = GLShader::new(GLShaderType::FRAGMENT, &fragment_shader_src.as_ref());
+            shader_program = GLShaderProgram::new(&vertex_shader, &fragment_shader);
+        }
+
+        let display_shader_program;
+        let display_vao = GLVAO::new();
+        {
+            let vertex_shader_src = app().resources().get_text(String::from("assets/shaders/quad_vert.glsl"));
+            let vertex_shader = GLShader::new(GLShaderType::VERTEX, &vertex_shader_src.as_ref());
+            let fragment_shader_src = app().resources().get_text(String::from("assets/shaders/quad_frag.glsl"));
+            let fragment_shader = GLShader::new(GLShaderType::FRAGMENT, &fragment_shader_src.as_ref());
+            display_shader_program = GLShaderProgram::new(&vertex_shader, &fragment_shader);
+        }
 
         Baker {
             context: context,
             command_queue: command_queue,
             program: program,
             kernel: kernel,
-            shader_program: shader_program
+            shader_program: shader_program,
+            display_shader_program: display_shader_program,
+            display_vao: display_vao
         }
     }
 
@@ -102,30 +133,97 @@ impl Baker {
         points
     }
 
-    pub fn bake(&self, model: &GLModel, params: &BakeParameters) {
+    pub fn bake(&mut self, model: &GLModel, params: &BakeParameters, window: &mut Window, glfw: &mut Glfw) {
         let (min, max) = model.bounds();
         let radius = (max - min).magnitude() * 0.5;
-        let center = (max - min) * 0.5 + min;
 
         let mut camera = Camera::new();
+        camera.set_aspect_ratio(Some(1.0));
         let camera_points = match params.sample_distribution {
             BakeSampleDistribution::Random => Self::random_sphere_points(params.sample_positions, radius),
             BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius)
         };
 
-        let base_color_rt = GLRenderTexture::new(1024, 1024, GLRenderAttachment::Color(0));
-        base_color_rt.bind();
-        let cl_base_color = CLGLTexture2D::new(&self.context, base_color_rt.tex(), CLBufferMode::Read);
+        assert!(params.sample_resolution > 1, "Failed to bake nemo. (Sample resolution must be 2 or larger)");
 
-        for _ in 0..params.epochs {
+        let base_color_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
+        //let cl_base_color = CLGLTexture2D::new(&self.context, base_color_rt.tex(), CLBufferMode::Read);
+
+        let normal_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
+        //let cl_normal = CLGLTexture2D::new(&self.context, normal_rt.tex(), CLBufferMode::Read);
+
+        let mro_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
+        //let cl_mro = CLGLTexture2D::new(&self.context, mro_rt.tex(), CLBufferMode::Read);
+
+        let emission_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
+        //let cl_emission = CLGLTexture2D::new(&self.context, emission_rt.tex(), CLBufferMode::Read);
+
+        let mut render_target = GLRenderTarget::new(params.sample_resolution, params.sample_resolution);
+        render_target.set_texture(GLRenderAttachment::Color(0), base_color_rt);
+        render_target.set_texture(GLRenderAttachment::Color(1), normal_rt);
+        render_target.set_texture(GLRenderAttachment::Color(2), mro_rt);
+        render_target.set_texture(GLRenderAttachment::Color(3), emission_rt);
+        render_target.check();
+
+        let mut attachments = Vec::new();
+        attachments.push(gl::COLOR_ATTACHMENT0);
+        attachments.push(gl::COLOR_ATTACHMENT1);
+        attachments.push(gl::COLOR_ATTACHMENT2);
+        attachments.push(gl::COLOR_ATTACHMENT3);
+        render_target.bind();
+        gl_draw_buffers(attachments.len(), attachments.as_ptr() as *const GLenum);
+        render_target.unbind();
+
+        for e in 0..params.epochs {
             for camera_point in &camera_points {
-                camera.set_translation(*camera_point);
+                glfw.poll_events();
+
+                camera.set_translation(-camera_point);
                 camera.set_rotation(Quaternion::look_rotation(-camera_point, Float3::up()));
 
+                // Render to rt's
+                gl_viewport(Int2::new(params.sample_resolution as i32, params.sample_resolution as i32));
+                {
+                    render_target.bind(); {
+                        gl_clear();
 
+                        let materials = &model.materials;
+
+                        for mesh in model.meshes.iter() {
+                            self.shader_program.bind(); {
+                                self.shader_program.set_float4x4(&String::from("model"), Float4x4::identity());
+                                self.shader_program.set_float4x4(&String::from("projection"), camera.get_proj_matrix());
+                                self.shader_program.set_float4x4(&String::from("view"), camera.get_view_matrix());
+                            
+                                let material = &materials[mesh.material_idx()];
+                                material.bind(&mut self.shader_program);
+
+                                mesh.draw();
+                            } self.shader_program.unbind();
+                        }
+                    }  render_target.unbind();
+                }
+
+                // Display rt result
+                gl_viewport(app().graphics().dimensions());
+                {
+                    gl_clear();
+
+                    self.display_shader_program.bind(); {
+                        let t = render_target.get_texture(GLRenderAttachment::Color(0)).unwrap();
+                        t.bind(0);
+                        self.display_shader_program.set_sampler_slot(&String::from("tex"), 0);
+
+                        self.display_vao.bind(); {
+                            gl_draw_arrays(gl::TRIANGLES, 0, 6);
+                        } self.display_vao.unbind();
+                    } self.display_shader_program.unbind();
+                }
+
+                window.swap_buffers();
             }
-        }
 
-        base_color_rt.unbind();
+            println!("EPOCHS: [{} / {}]", e, params.epochs);
+        }
     }
 }

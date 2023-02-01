@@ -6,6 +6,7 @@ pub struct Camera {
     translation: Float3,
     rotation: Quat,
 
+    aspect_ratio: Option<f32>,
     fov: f32,
     near: f32,
     far: f32,
@@ -21,6 +22,7 @@ impl Camera {
         Camera {
             translation: Float3::default(),
             rotation: Quat::identity(),
+            aspect_ratio: None,
             fov: 60.0,
             near: 0.1,
             far: 300.0,
@@ -58,10 +60,17 @@ impl Camera {
         self.proj_dirty = true;
     }
 
+    pub fn set_aspect_ratio(&mut self, aspect_ratio: Option<f32>) {
+        self.aspect_ratio = aspect_ratio;
+    }
+
     pub fn get_proj_matrix(&mut self) -> Float4x4 {
         if self.proj_dirty {
-            let dimensions = app().graphics().dimensions();
-            let aspect_ratio = dimensions.x as f32 / dimensions.y as f32;
+            let aspect_ratio = self.aspect_ratio.unwrap_or_else(|| -> f32 {
+                let dimensions = app().graphics().dimensions();
+                dimensions.x as f32 / dimensions.y as f32
+            });
+            
             self.proj_matrix = Float4x4::perspective(self.fov, aspect_ratio, self.near, self.far);
         }
 

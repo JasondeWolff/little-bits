@@ -37,6 +37,13 @@ pub fn gl_tex_image_2d(internal_format: u32, width: i32, height: i32, format: u3
     }
 }
 
+pub fn gl_tex_image_2df(internal_format: u32, width: i32, height: i32, format: u32, data: *const c_void) {
+    unsafe {
+        gl::TexImage2D(gl::TEXTURE_2D, 0, internal_format as i32, width, height, 0, format, gl::FLOAT, data);
+        gl_check();
+    }
+}
+
 pub fn gl_active_texture(slot: u32) {
     unsafe {
         gl::ActiveTexture(gl::TEXTURE0 + slot);

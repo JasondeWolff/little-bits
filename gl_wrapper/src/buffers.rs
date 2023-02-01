@@ -47,18 +47,28 @@ pub fn gl_enable_vertex_attrib_array(index: u32) {
 pub fn gl_frame_buffer_texture_2d(texture: &GLTexture, attachment: GLenum) {
     unsafe {
         gl::FramebufferTexture2D(gl::FRAMEBUFFER, attachment, gl::TEXTURE_2D, texture.handle(), 0);
+        gl_check();
     }
 }
 
 pub fn gl_render_buffer_storage(format: GLenum, width: i32, height: i32) {
     unsafe {
         gl::RenderbufferStorage(gl::RENDERBUFFER, format, width, height);
+        gl_check();
     }
 }
 
 pub fn gl_frame_buffer_render_buffer(rbo: &GLRBO, attachment: GLenum) {
     unsafe {
         gl::FramebufferRenderbuffer(gl::FRAMEBUFFER, attachment, gl::RENDERBUFFER, rbo.handle());
+        gl_check();
+    }
+}
+
+pub fn gl_draw_buffers(count: usize, buffers: *const GLenum) {
+    unsafe {
+        gl::DrawBuffers(count as i32, buffers);
+        gl_check();
     }
 }
 

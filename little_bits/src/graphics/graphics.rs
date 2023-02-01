@@ -187,12 +187,7 @@ impl Graphics {
             },
             None => {
                 // TEMPORARY!!
-                let bake_params = BakeParameters {
-                    epochs: 50,
-                    sample_positions: 200,
-                    sample_distribution: nn::BakeSampleDistribution::Random
-                };
-                self.bake_nemo(model.clone(), &bake_params);
+                self.bake_nemo(model.clone(), &BakeParameters::default());
 
                 let gl_model = GLModel::new(&model);
                 self.dynamic_models.insert(model_ptr, (gl_model, vec![model_instance.clone()]));
@@ -204,7 +199,7 @@ impl Graphics {
 
     pub fn bake_nemo(&mut self, model: Shared<Model>, params: &BakeParameters) {
         let gl_model = GLModel::new(&model);
-        self.nn_baker.bake(&gl_model, params);
+        self.nn_baker.bake(&gl_model, params, &mut self.window, &mut self.glfw);
     }
 }
 
