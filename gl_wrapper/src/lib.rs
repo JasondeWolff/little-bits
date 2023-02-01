@@ -85,3 +85,10 @@ pub fn gl_draw_arrays(mode: GLenum, offset: usize, count: usize) {
         gl_check();
     }
 }
+
+pub fn gl_finish() {
+    unsafe {
+        gl::Finish();
+        gl_check();
+    }
+}

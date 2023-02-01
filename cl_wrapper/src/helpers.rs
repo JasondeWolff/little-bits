@@ -104,7 +104,11 @@ impl CLContext {
     
         let device_name = cl_check(cl3::device::get_device_info(device_id, cl3::device::CL_DEVICE_NAME));
         let device_name_str: String = device_name.into();
-        println!("OpenCL using device: {}", device_name_str);
+        let available_mem = cl_check(cl3::device::get_device_info(device_id, cl3::device::CL_DEVICE_GLOBAL_MEM_SIZE));
+        let available_mem: u64 = available_mem.into();
+        let local_available_mem = cl_check(cl3::device::get_device_info(device_id, cl3::device::CL_DEVICE_LOCAL_MEM_SIZE));
+        let local_available_mem: u64 = local_available_mem.into();
+        println!("OpenCL using device: {} ({}MB global, {}KB local)", device_name_str, available_mem / 1024 / 1024, local_available_mem / 1024);
     
         let context_properties: [cl_context_properties; 7] = unsafe {[
             cl3::context::CL_CONTEXT_PLATFORM, std::mem::transmute(platform_id),
@@ -195,7 +199,7 @@ impl CLKernel {
         self.kernel
     }
 
-    pub fn set_arg_buffer(&self, idx: u32, buffer: CLBuffer) {
+    pub fn set_arg_buffer(&self, idx: u32, buffer: &dyn ICLMem) {
         unsafe {
             let buffer_ptr_ptr: *mut *mut c_void = &mut buffer.handle();
             cl_check(cl3::kernel::set_kernel_arg(self.kernel, idx, std::mem::size_of::<cl_mem>(), std::mem::transmute(buffer_ptr_ptr)));
@@ -236,9 +240,17 @@ impl CLCommandQueue {
         self.command_queue
     }
 
-    pub fn execute(&self, kernel: &CLKernel, work_dim: u32, global_work_dims: &Int2) {
+    pub fn execute(&self, kernel: &CLKernel, global_work_dims: &Vec<i32>, local_work_dims: Option<&Vec<i32>>) {
         unsafe {
-            cl_check(cl3::command_queue::enqueue_nd_range_kernel(self.command_queue, kernel.handle(), work_dim, std::ptr::null(), &global_work_dims.x as *const i32 as *const usize, std::ptr::null(), 0, std::ptr::null()));
+            let global_work_dims = global_work_dims.into_iter().map(|dim| -> usize { dim.clone() as usize }).collect::<Vec<_>>();
+            if let Some(local_work_dims) = local_work_dims {
+                let local_work_dims = local_work_dims.into_iter().map(|dim| -> usize { dim.clone() as usize }).collect::<Vec<_>>();
+                assert_eq!(global_work_dims.len(), local_work_dims.len(), "Failed to execute command queue. (Global and local work dims must match)");
+
+                cl_check(cl3::command_queue::enqueue_nd_range_kernel(self.command_queue, kernel.handle(), global_work_dims.len() as u32, std::ptr::null(), global_work_dims.as_ptr() as *const usize, local_work_dims.as_ptr() as *const usize, 0, std::ptr::null()));
+            } else {
+                cl_check(cl3::command_queue::enqueue_nd_range_kernel(self.command_queue, kernel.handle(), global_work_dims.len() as u32, std::ptr::null(), global_work_dims.as_ptr() as *const usize, std::ptr::null(), 0, std::ptr::null()));
+            }
         }
     }
 
@@ -246,14 +258,14 @@ impl CLCommandQueue {
         cl_check(cl3::command_queue::finish(self.command_queue));
     }
 
-    pub fn acquire_gl_texture(&self, texture: CLGLTexture2D) {
+    pub fn acquire_gl_texture(&self, texture: &CLGLTexture2D) {
         unsafe {
             let texture_ptr_ptr: *mut *mut c_void = &mut texture.handle();
             cl_check(cl3::gl::enqueue_acquire_gl_objects(self.command_queue, 1, std::mem::transmute(texture_ptr_ptr), 0, std::ptr::null()));
         }
     }
 
-    pub fn release_gl_texture(&self, texture: CLGLTexture2D) {
+    pub fn release_gl_texture(&self, texture: &CLGLTexture2D) {
         unsafe {
             let texture_ptr_ptr: *mut *mut c_void = &mut texture.handle();
             cl_check(cl3::gl::enqueue_release_gl_objects(self.command_queue, 1, std::mem::transmute(texture_ptr_ptr), 0, std::ptr::null()));
@@ -275,6 +287,10 @@ impl Drop for CLCommandQueue {
     }
 }
 
+pub trait ICLMem {
+    fn handle(&self) -> cl_mem;
+}
+
 pub enum CLBufferMode {
     Read,
     Write,
@@ -286,13 +302,19 @@ pub struct CLBuffer {
     size: usize
 }
 
+impl ICLMem for CLBuffer {
+    fn handle(&self) -> cl_mem {
+        self.mem
+    }
+}
+
 impl CLBuffer {
     pub fn new(context: &CLContext, mode: CLBufferMode, size: usize) -> Self {
         let buffer = unsafe {
             let flags = match mode {
                 CLBufferMode::Read => cl3::memory::CL_MEM_READ_ONLY,
-                CLBufferMode::Write => cl3::memory::CL_MEM_READ_ONLY,
-                CLBufferMode::ReadWrite => cl3::memory::CL_MEM_READ_ONLY
+                CLBufferMode::Write => cl3::memory::CL_MEM_WRITE_ONLY,
+                CLBufferMode::ReadWrite => cl3::memory::CL_MEM_READ_WRITE
             };
             cl_check(cl3::memory::create_buffer(context.context_handle(), flags, size, std::ptr::null_mut()))
         };
@@ -301,10 +323,6 @@ impl CLBuffer {
             mem: buffer,
             size: size
         }
-    }
-
-    pub fn handle(&self) -> cl_mem {
-        self.mem
     }
 
     pub fn size(&self) -> usize {
@@ -324,13 +342,19 @@ pub struct CLGLTexture2D {
     mem: cl_mem,
 }
 
+impl ICLMem for CLGLTexture2D {
+    fn handle(&self) -> cl_mem {
+        self.mem
+    }
+}
+
 impl CLGLTexture2D {
     pub fn new(context: &CLContext, gl_texture: &GLTexture, mode: CLBufferMode) -> Self {
         let buffer = unsafe {
             let flags = match mode {
                 CLBufferMode::Read => cl3::memory::CL_MEM_READ_ONLY,
-                CLBufferMode::Write => cl3::memory::CL_MEM_READ_ONLY,
-                CLBufferMode::ReadWrite => cl3::memory::CL_MEM_READ_ONLY
+                CLBufferMode::Write => cl3::memory::CL_MEM_WRITE_ONLY,
+                CLBufferMode::ReadWrite => cl3::memory::CL_MEM_READ_WRITE
             };
             cl_check(cl3::gl::create_from_gl_texture(context.context_handle(), flags, gl_texture.target(), 0, gl_texture.handle()))
         };

@@ -2,7 +2,6 @@ extern crate gl_wrapper;
 pub use gl_wrapper::*;
 
 use crate::graphics::opengl::render_texture::GLRenderTexture;
-use crate::Shared;
 
 use std::collections::HashMap;
 

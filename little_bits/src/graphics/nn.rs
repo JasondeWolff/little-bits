@@ -2,7 +2,6 @@ use glfw::{Window, Context, Glfw};
 
 extern crate cl_wrapper;
 use cl_wrapper::*;
-use rand::distributions::normal;
 
 use crate::graphics::opengl::*;
 use rand::Rng;
@@ -148,16 +147,16 @@ impl Baker {
         assert!(params.sample_resolution > 1, "Failed to bake nemo. (Sample resolution must be 2 or larger)");
 
         let base_color_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
-        let cl_base_color = CLGLTexture2D::new(&self.context, base_color_rt.tex(), CLBufferMode::Read);
+        //let cl_base_color = CLGLTexture2D::new(&self.context, base_color_rt.tex(), CLBufferMode::Read);
 
         let normal_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
-        let cl_normal = CLGLTexture2D::new(&self.context, normal_rt.tex(), CLBufferMode::Read);
+        //let cl_normal = CLGLTexture2D::new(&self.context, normal_rt.tex(), CLBufferMode::Read);
 
         let mro_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
-        let cl_mro = CLGLTexture2D::new(&self.context, mro_rt.tex(), CLBufferMode::Read);
+        //let cl_mro = CLGLTexture2D::new(&self.context, mro_rt.tex(), CLBufferMode::Read);
 
         let emission_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
-        let cl_emission = CLGLTexture2D::new(&self.context, emission_rt.tex(), CLBufferMode::Read);
+        //let cl_emission = CLGLTexture2D::new(&self.context, emission_rt.tex(), CLBufferMode::Read);
 
         let mut render_target = GLRenderTarget::new(params.sample_resolution, params.sample_resolution);
         render_target.set_texture(GLRenderAttachment::Color(0), base_color_rt);
@@ -166,6 +165,9 @@ impl Baker {
         render_target.set_texture(GLRenderAttachment::Color(3), emission_rt);
         render_target.check();
 
+        let display_target = GLRenderTexture::new(app().graphics().dimensions().x as usize, app().graphics().dimensions().y as usize);
+        let cl_display_target = CLGLTexture2D::new(&self.context, display_target.tex(), CLBufferMode::Write);
+
         for e in 0..params.epochs {
             for camera_point in &camera_points {
                 glfw.poll_events();
@@ -173,7 +175,7 @@ impl Baker {
                 camera.set_translation(-camera_point);
                 camera.set_rotation(Quaternion::look_rotation(center - camera_point, Float3::up()));
 
-                // Render to rt's
+                // Render inputs to rt's
                 gl_viewport(Int2::new(params.sample_resolution as i32, params.sample_resolution as i32));
                 {
                     render_target.bind(); {
@@ -196,13 +198,22 @@ impl Baker {
                     }  render_target.unbind();
                 }
 
+                // Train nemo
+                gl_finish();
+                self.command_queue.acquire_gl_texture(&cl_display_target); {
+                    self.kernel.set_arg_buffer(0, &cl_display_target);
+
+                    self.command_queue.execute(&self.kernel, &vec![params.sample_resolution as i32, params.sample_resolution as i32], None);
+                    self.command_queue.finish(); // RANDOM ERROR, SOMETIMES: CL_OUT_OF_RESOURCES or CL_INVALID_COMMAND_QUEUE
+                } self.command_queue.release_gl_texture(&cl_display_target);
+
                 // Display rt result
                 gl_viewport(app().graphics().dimensions());
                 {
                     gl_clear();
 
                     self.display_shader_program.bind(); {
-                        let t = render_target.get_texture(GLRenderAttachment::Color(0)).unwrap();
+                        let t = &display_target;//render_target.get_texture(GLRenderAttachment::Color(0)).unwrap();
                         t.bind(0);
                         self.display_shader_program.set_sampler_slot(&String::from("tex"), 0);
 
