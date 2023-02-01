@@ -136,6 +136,7 @@ impl Baker {
     pub fn bake(&mut self, model: &GLModel, params: &BakeParameters, window: &mut Window, glfw: &mut Glfw) {
         let (min, max) = model.bounds();
         let radius = (max - min).magnitude() * 0.5;
+        let center = (max - min) * 0.5 + min;
 
         let mut camera = Camera::new();
         camera.set_aspect_ratio(Some(1.0));
@@ -147,16 +148,16 @@ impl Baker {
         assert!(params.sample_resolution > 1, "Failed to bake nemo. (Sample resolution must be 2 or larger)");
 
         let base_color_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
-        //let cl_base_color = CLGLTexture2D::new(&self.context, base_color_rt.tex(), CLBufferMode::Read);
+        let cl_base_color = CLGLTexture2D::new(&self.context, base_color_rt.tex(), CLBufferMode::Read);
 
         let normal_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
-        //let cl_normal = CLGLTexture2D::new(&self.context, normal_rt.tex(), CLBufferMode::Read);
+        let cl_normal = CLGLTexture2D::new(&self.context, normal_rt.tex(), CLBufferMode::Read);
 
         let mro_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
-        //let cl_mro = CLGLTexture2D::new(&self.context, mro_rt.tex(), CLBufferMode::Read);
+        let cl_mro = CLGLTexture2D::new(&self.context, mro_rt.tex(), CLBufferMode::Read);
 
         let emission_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
-        //let cl_emission = CLGLTexture2D::new(&self.context, emission_rt.tex(), CLBufferMode::Read);
+        let cl_emission = CLGLTexture2D::new(&self.context, emission_rt.tex(), CLBufferMode::Read);
 
         let mut render_target = GLRenderTarget::new(params.sample_resolution, params.sample_resolution);
         render_target.set_texture(GLRenderAttachment::Color(0), base_color_rt);
@@ -165,21 +166,12 @@ impl Baker {
         render_target.set_texture(GLRenderAttachment::Color(3), emission_rt);
         render_target.check();
 
-        let mut attachments = Vec::new();
-        attachments.push(gl::COLOR_ATTACHMENT0);
-        attachments.push(gl::COLOR_ATTACHMENT1);
-        attachments.push(gl::COLOR_ATTACHMENT2);
-        attachments.push(gl::COLOR_ATTACHMENT3);
-        render_target.bind();
-        gl_draw_buffers(attachments.len(), attachments.as_ptr() as *const GLenum);
-        render_target.unbind();
-
         for e in 0..params.epochs {
             for camera_point in &camera_points {
                 glfw.poll_events();
 
                 camera.set_translation(-camera_point);
-                camera.set_rotation(Quaternion::look_rotation(-camera_point, Float3::up()));
+                camera.set_rotation(Quaternion::look_rotation(center - camera_point, Float3::up()));
 
                 // Render to rt's
                 gl_viewport(Int2::new(params.sample_resolution as i32, params.sample_resolution as i32));
@@ -221,6 +213,8 @@ impl Baker {
                 }
 
                 window.swap_buffers();
+
+                std::thread::sleep(std::time::Duration::from_millis(500));
             }
 
             println!("EPOCHS: [{} / {}]", e, params.epochs);

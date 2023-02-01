@@ -12,7 +12,7 @@ pub struct GLRenderTarget {
     textures: HashMap<GLRenderAttachment, GLRenderTexture>
 }
 
-#[derive( std::cmp::Eq, std::cmp::PartialEq, Hash)]
+#[derive(std::cmp::Eq, std::cmp::PartialEq, Hash)]
 pub enum GLRenderAttachment {
     Color(u32),
     Depth
@@ -71,7 +71,7 @@ impl GLRenderTarget {
             }
         }
 
-        //self.set_active_buffers();
+        self.set_active_buffers();
     }
 
     fn set_active_buffers(&self) {
@@ -79,6 +79,8 @@ impl GLRenderTarget {
         for (attachment, _) in &self.textures {
             attachments.push(attachment.to_gl());
         }
+
+        attachments.sort();
 
         self.bind(); {
             gl_draw_buffers(attachments.len(), attachments.as_ptr() as *const GLenum);
