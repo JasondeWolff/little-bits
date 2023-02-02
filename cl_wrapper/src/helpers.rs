@@ -142,10 +142,19 @@ pub struct CLProgram {
 }
 
 impl CLProgram {
-    pub fn new(context: &CLContext, source: &String) -> Self {
+    pub fn new(context: &CLContext, source: &String, dir: Option<&String>) -> Self {
         let program = cl_check(cl3::program::create_program_with_source(context.context_handle(), &[source.as_str()]));
 
-        match cl3::program::build_program(program, &[context.device_handle()], CString::new("").unwrap().as_c_str(), None, std::ptr::null_mut()) {
+        let options = match dir {
+            Some(dir) => {
+                CString::new(format!("-I {}", dir)).unwrap()
+            },
+            None => {
+                CString::new("").unwrap()
+            }
+        };
+
+        match cl3::program::build_program(program, &[context.device_handle()], options.as_c_str(), None, std::ptr::null_mut()) {
             Err(_) => {
                 let log = cl_check(cl3::program::get_program_build_info(program, context.device_handle(), cl3::program::CL_PROGRAM_BUILD_LOG));
                 let log: String = log.into();

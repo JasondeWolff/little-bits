@@ -49,7 +49,7 @@ impl Baker {
         let context = CLContext::new(window);
         let command_queue = CLCommandQueue::new(&context);
         let program_src = app().resources().get_text(String::from("assets/cl/bake.cl"));
-        let program = CLProgram::new(&context, &program_src.as_ref());
+        let program = CLProgram::new(&context, &program_src.as_ref(), Some(&String::from("assets/cl/")));
         let kernel = CLKernel::new(&program, &String::from("render"));
 
         let shader_program;
@@ -147,16 +147,16 @@ impl Baker {
         assert!(params.sample_resolution > 1, "Failed to bake nemo. (Sample resolution must be 2 or larger)");
 
         let base_color_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
-        //let cl_base_color = CLGLTexture2D::new(&self.context, base_color_rt.tex(), CLBufferMode::Read);
+        let cl_base_color = CLGLTexture2D::new(&self.context, base_color_rt.tex(), CLBufferMode::Read);
 
         let normal_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
-        //let cl_normal = CLGLTexture2D::new(&self.context, normal_rt.tex(), CLBufferMode::Read);
+        let cl_normal = CLGLTexture2D::new(&self.context, normal_rt.tex(), CLBufferMode::Read);
 
         let mro_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
-        //let cl_mro = CLGLTexture2D::new(&self.context, mro_rt.tex(), CLBufferMode::Read);
+        let cl_mro = CLGLTexture2D::new(&self.context, mro_rt.tex(), CLBufferMode::Read);
 
         let emission_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
-        //let cl_emission = CLGLTexture2D::new(&self.context, emission_rt.tex(), CLBufferMode::Read);
+        let cl_emission = CLGLTexture2D::new(&self.context, emission_rt.tex(), CLBufferMode::Read);
 
         let mut render_target = GLRenderTarget::new(params.sample_resolution, params.sample_resolution);
         render_target.set_texture(GLRenderAttachment::Color(0), base_color_rt);
@@ -200,12 +200,30 @@ impl Baker {
 
                 // Train nemo
                 gl_finish();
-                self.command_queue.acquire_gl_texture(&cl_display_target); {
+                {
+                    // Acquire gl resources
+                    self.command_queue.acquire_gl_texture(&cl_base_color);
+                    self.command_queue.acquire_gl_texture(&cl_normal);
+                    self.command_queue.acquire_gl_texture(&cl_mro);
+                    self.command_queue.acquire_gl_texture(&cl_emission);
+                    self.command_queue.acquire_gl_texture(&cl_display_target);
+
                     self.kernel.set_arg_buffer(0, &cl_display_target);
+                    self.kernel.set_arg_buffer(1, &cl_base_color);
+                    self.kernel.set_arg_buffer(2, &cl_normal);
+                    self.kernel.set_arg_buffer(3, &cl_mro);
+                    self.kernel.set_arg_buffer(4, &cl_emission);
 
                     self.command_queue.execute(&self.kernel, &vec![app().graphics().dimensions().x as usize, app().graphics().dimensions().y as usize], None);
-                    self.command_queue.finish(); // RANDOM ERROR, SOMETIMES: CL_OUT_OF_RESOURCES or CL_INVALID_COMMAND_QUEUE
-                } self.command_queue.release_gl_texture(&cl_display_target);
+                    self.command_queue.finish();
+                    
+                    // Release gl resources
+                    self.command_queue.release_gl_texture(&cl_display_target);
+                    self.command_queue.release_gl_texture(&cl_emission);
+                    self.command_queue.release_gl_texture(&cl_mro);
+                    self.command_queue.release_gl_texture(&cl_normal);
+                    self.command_queue.release_gl_texture(&cl_base_color);
+                }
 
                 // Display rt result
                 gl_viewport(app().graphics().dimensions());
@@ -225,7 +243,7 @@ impl Baker {
 
                 window.swap_buffers();
 
-                std::thread::sleep(std::time::Duration::from_millis(500));
+                //std::thread::sleep(std::time::Duration::from_millis(500));
             }
 
             println!("EPOCHS: [{} / {}]", e, params.epochs);
