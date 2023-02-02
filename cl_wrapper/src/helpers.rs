@@ -1,13 +1,9 @@
 extern crate cl3;
 pub use cl3::types::*;
 use std::ffi::{c_void, CString};
-//use std::rc::Rc;
 
 extern crate glfw;
 use glfw::Window;
-
-extern crate gmaths;
-use gmaths::*;
 
 extern crate gl_wrapper;
 use gl_wrapper::*;
@@ -240,11 +236,9 @@ impl CLCommandQueue {
         self.command_queue
     }
 
-    pub fn execute(&self, kernel: &CLKernel, global_work_dims: &Vec<i32>, local_work_dims: Option<&Vec<i32>>) {
+    pub fn execute(&self, kernel: &CLKernel, global_work_dims: &Vec<usize>, local_work_dims: Option<&Vec<usize>>) {
         unsafe {
-            let global_work_dims = global_work_dims.into_iter().map(|dim| -> usize { dim.clone() as usize }).collect::<Vec<_>>();
             if let Some(local_work_dims) = local_work_dims {
-                let local_work_dims = local_work_dims.into_iter().map(|dim| -> usize { dim.clone() as usize }).collect::<Vec<_>>();
                 assert_eq!(global_work_dims.len(), local_work_dims.len(), "Failed to execute command queue. (Global and local work dims must match)");
 
                 cl_check(cl3::command_queue::enqueue_nd_range_kernel(self.command_queue, kernel.handle(), global_work_dims.len() as u32, std::ptr::null(), global_work_dims.as_ptr() as *const usize, local_work_dims.as_ptr() as *const usize, 0, std::ptr::null()));

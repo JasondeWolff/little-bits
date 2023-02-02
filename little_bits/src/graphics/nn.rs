@@ -203,7 +203,7 @@ impl Baker {
                 self.command_queue.acquire_gl_texture(&cl_display_target); {
                     self.kernel.set_arg_buffer(0, &cl_display_target);
 
-                    self.command_queue.execute(&self.kernel, &vec![params.sample_resolution as i32, params.sample_resolution as i32], None);
+                    self.command_queue.execute(&self.kernel, &vec![app().graphics().dimensions().x as usize, app().graphics().dimensions().y as usize], None);
                     self.command_queue.finish(); // RANDOM ERROR, SOMETIMES: CL_OUT_OF_RESOURCES or CL_INVALID_COMMAND_QUEUE
                 } self.command_queue.release_gl_texture(&cl_display_target);
 
