@@ -17,6 +17,14 @@ pub struct Camera {
     view_matrix: Float4x4,
 }
 
+#[repr(C)]
+pub struct CLCamera {
+    position: Float4,
+	lowerLeftCorner: Float4,
+	horizontal: Float4,
+	vertical: Float4
+}
+
 impl Camera {
     pub fn new() -> Self {
         Camera {
@@ -107,5 +115,28 @@ impl Camera {
         }
 
         self.view_matrix
+    }
+}
+
+impl CLCamera {
+    pub fn new(position: Float3, forward: &Float3, fov: f32, aspect_ratio: f32) -> Self {
+        let w = forward;
+        let u = Float3::up().cross(*w).normalized();
+        let v = w.cross(u);
+
+        let h = (fov.to_radians() * 0.5).tan();
+        let height = 2.0 * h;
+        let width = aspect_ratio * height;
+
+        let horizontal = u * width;
+        let vertical = v * height;
+        let lowerLeftCorner = position - horizontal * 0.5 - vertical * 0.5 - w;
+
+        CLCamera {
+            position: Float4::new(position.x, position.y, position.z, 0.0),
+            lowerLeftCorner: Float4::new(lowerLeftCorner.x, lowerLeftCorner.y, lowerLeftCorner.z, 0.0),
+            horizontal: Float4::new(horizontal.x, horizontal.y, horizontal.z, 0.0),
+            vertical: Float4::new(vertical.x, vertical.y, vertical.z, 0.0)
+        }
     }
 }

@@ -7,7 +7,7 @@ use crate::graphics::opengl::*;
 use rand::Rng;
 
 use crate::app;
-use crate::graphics::camera::Camera;
+use crate::graphics::camera::*;
 use std::f32::consts::PI;
 
 pub struct Baker {
@@ -139,6 +139,7 @@ impl Baker {
 
         let mut camera = Camera::new();
         camera.set_aspect_ratio(Some(1.0));
+        camera.set_fov(90.0);
         let camera_points = match params.sample_distribution {
             BakeSampleDistribution::Random => Self::random_sphere_points(params.sample_positions, radius),
             BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius)
@@ -167,6 +168,8 @@ impl Baker {
 
         let display_target = GLRenderTexture::new(app().graphics().dimensions().x as usize, app().graphics().dimensions().y as usize);
         let cl_display_target = CLGLTexture2D::new(&self.context, display_target.tex(), CLBufferMode::Write);
+
+        let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
         for e in 0..params.epochs {
             for camera_point in &camera_points {
@@ -198,6 +201,8 @@ impl Baker {
                     }  render_target.unbind();
                 }
 
+                let mut cl_camera_rep = CLCamera::new(-camera_point, &(center - camera_point).normalized(), 90.0, 1.0);
+
                 // Train nemo
                 gl_finish();
                 {
@@ -208,11 +213,14 @@ impl Baker {
                     self.command_queue.acquire_gl_texture(&cl_emission);
                     self.command_queue.acquire_gl_texture(&cl_display_target);
 
+                    self.command_queue.write_buffer(&cl_camera, &mut cl_camera_rep as *mut CLCamera as *mut c_void);
+
                     self.kernel.set_arg_buffer(0, &cl_display_target);
                     self.kernel.set_arg_buffer(1, &cl_base_color);
                     self.kernel.set_arg_buffer(2, &cl_normal);
                     self.kernel.set_arg_buffer(3, &cl_mro);
                     self.kernel.set_arg_buffer(4, &cl_emission);
+                    self.kernel.set_arg_buffer(5, &cl_camera);
 
                     self.command_queue.execute(&self.kernel, &vec![app().graphics().dimensions().x as usize, app().graphics().dimensions().y as usize], None);
                     self.command_queue.finish();
