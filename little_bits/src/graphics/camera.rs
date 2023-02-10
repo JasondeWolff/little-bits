@@ -20,7 +20,7 @@ pub struct Camera {
 #[repr(C)]
 pub struct CLCamera {
     position: Float4,
-	lowerLeftCorner: Float4,
+	lower_left_corner: Float4,
 	horizontal: Float4,
 	vertical: Float4
 }
@@ -130,11 +130,11 @@ impl CLCamera {
 
         let horizontal = u * width;
         let vertical = v * height;
-        let lowerLeftCorner = position - horizontal * 0.5 - vertical * 0.5 - w;
+        let lower_left_corner = position - horizontal * 0.5 - vertical * 0.5 - w;
 
         CLCamera {
             position: Float4::new(position.x, position.y, position.z, 0.0),
-            lowerLeftCorner: Float4::new(lowerLeftCorner.x, lowerLeftCorner.y, lowerLeftCorner.z, 0.0),
+            lower_left_corner: Float4::new(lower_left_corner.x, lower_left_corner.y, lower_left_corner.z, 0.0),
             horizontal: Float4::new(horizontal.x, horizontal.y, horizontal.z, 0.0),
             vertical: Float4::new(vertical.x, vertical.y, vertical.z, 0.0)
         }

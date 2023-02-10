@@ -264,8 +264,9 @@ impl Resources {
 
                 let mut meshes = Vec::new();
                 let mut materials = vec![Material::default(); document.materials().len()];
-                if document.nodes().len() > 0 {
-                    self.process_node(document.nodes().next().as_ref().unwrap(), &buffers, &images, &asset_path, &mut meshes, &mut materials);
+
+                for node in document.nodes() {
+                    self.process_node(&node, &buffers, &images, &asset_path, &mut meshes, &mut materials);
                 }
 
                 let resource = Shared::new(Model {
