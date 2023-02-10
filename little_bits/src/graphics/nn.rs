@@ -10,6 +10,57 @@ use crate::app;
 use crate::graphics::camera::*;
 use std::f32::consts::PI;
 
+struct NeuralNetwork {
+    input_count: i32,
+    hidden_count: i32,
+    output_count: i32,
+    hidden_layer_count: i32,
+
+    weights: Vec<f32>
+}
+
+impl NeuralNetwork {
+    fn new(input_count: i32, hidden_count: i32, output_count: i32, hidden_layer_count: i32) -> Self {
+        let weight_count = input_count * hidden_count + hidden_count * hidden_count * hidden_layer_count + hidden_count * output_count;
+        let mut weights = Vec::with_capacity(weight_count as usize);
+
+        let mut rng = rand::thread_rng();
+        for _ in 0..weights.capacity() {
+            weights.push(rng.gen_range(-1.0, 1.0));
+        }
+        
+        NeuralNetwork {
+            input_count: input_count,
+            hidden_count: hidden_count,
+            output_count: output_count,
+            hidden_layer_count: hidden_layer_count,
+            weights: weights
+        }
+    }
+
+    fn required_cache_size(&self) -> usize {
+        (self.input_count + self.hidden_count * self.hidden_layer_count + self.output_count) as usize * 4
+    }
+}
+
+struct CLNeuralNetwork {
+    input_count: i32,
+    hidden_count: i32,
+    output_count: i32,
+    hidden_layer_count: i32
+}
+
+impl CLNeuralNetwork {
+    pub fn new(nn: &NeuralNetwork) -> Self {
+        CLNeuralNetwork {
+            input_count: nn.input_count,
+            hidden_count: nn.hidden_count,
+            output_count: nn.output_count,
+            hidden_layer_count: nn.hidden_layer_count
+        }
+    }
+}
+
 pub struct Baker {
     context: CLContext,
     command_queue: CLCommandQueue,
@@ -171,6 +222,16 @@ impl Baker {
 
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
+        let mut neural_network = NeuralNetwork::new(5, 8, 3, 2);
+        let mut cl_nn_rep = CLNeuralNetwork::new(&neural_network);
+        let cl_neural_network = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<NeuralNetwork>());
+        let cl_in_weights = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<f32>() * neural_network.weights.len());
+        let cl_out_weights = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>() * neural_network.weights.len());
+
+        let cl_loss = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>());
+
+        println!("Using {}B per kernel", neural_network.required_cache_size());
+
         for e in 0..params.epochs {
             for camera_point in &camera_points {
                 glfw.poll_events();
@@ -214,6 +275,9 @@ impl Baker {
                     self.command_queue.acquire_gl_texture(&cl_display_target);
 
                     self.command_queue.write_buffer(&cl_camera, &mut cl_camera_rep as *mut CLCamera as *mut c_void);
+                    self.command_queue.write_buffer(&cl_neural_network, &mut cl_nn_rep as *mut CLNeuralNetwork as *mut c_void);
+                    self.command_queue.write_buffer(&cl_in_weights, neural_network.weights.as_mut_ptr() as *mut c_void);
+                    self.command_queue.write_buffer(&cl_loss, &mut 0.0f32 as *mut f32 as *mut c_void);
 
                     self.kernel.set_arg_buffer(0, &cl_display_target);
                     self.kernel.set_arg_buffer(1, &cl_base_color);
@@ -221,10 +285,21 @@ impl Baker {
                     self.kernel.set_arg_buffer(3, &cl_mro);
                     self.kernel.set_arg_buffer(4, &cl_emission);
                     self.kernel.set_arg_buffer(5, &cl_camera);
+                    self.kernel.set_arg_buffer(6, &cl_neural_network);
+                    self.kernel.set_arg_buffer(7, &cl_in_weights);
+                    self.kernel.set_arg_buffer(8, &cl_out_weights);
+                    self.kernel.set_arg_empty(9, neural_network.required_cache_size());
+                    self.kernel.set_arg_buffer(10, &cl_loss);
 
-                    self.command_queue.execute(&self.kernel, &vec![app().graphics().dimensions().x as usize, app().graphics().dimensions().y as usize], None);
+                    let local_work_dims = vec![2, 2];
+                    self.command_queue.execute(&self.kernel, &vec![app().graphics().dimensions().x as usize, app().graphics().dimensions().y as usize], Some(&local_work_dims));
                     self.command_queue.finish();
                     
+                    self.command_queue.read_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr());
+                    let mut loss = 0.0f32;
+                    self.command_queue.read_buffer(&cl_loss, &mut loss as *mut f32);
+                    println!("loss: {}", loss);
+
                     // Release gl resources
                     self.command_queue.release_gl_texture(&cl_display_target);
                     self.command_queue.release_gl_texture(&cl_emission);
@@ -250,8 +325,6 @@ impl Baker {
                 }
 
                 window.swap_buffers();
-
-                //std::thread::sleep(std::time::Duration::from_millis(500));
             }
 
             println!("EPOCHS: [{} / {}]", e, params.epochs);

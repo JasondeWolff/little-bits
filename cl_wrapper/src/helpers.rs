@@ -211,6 +211,12 @@ impl CLKernel {
         }
     }
 
+    pub fn set_arg_empty(&self, idx: u32, size: usize) {
+        unsafe {
+            cl_check(cl3::kernel::set_kernel_arg(self.kernel, idx, size, std::ptr::null_mut()));
+        }
+    }
+
     pub fn set_arg_int(&self, idx: u32, value: i32) {
         unsafe {
             cl_check(cl3::kernel::set_kernel_arg(self.kernel, idx, std::mem::size_of::<i32>(), &value as *const i32 as *const c_void));
@@ -281,9 +287,9 @@ impl CLCommandQueue {
         }
     }
 
-    pub fn read_buffer<T>(&self, buffer: &CLBuffer, data: &mut T) {
+    pub fn read_buffer<T>(&self, buffer: &CLBuffer, data: *mut T) {
         unsafe {
-            cl_check(cl3::command_queue::enqueue_read_buffer(self.command_queue, buffer.handle(), CL_FALSE, 0, buffer.size(), [data].as_mut_ptr() as *mut u8 as *mut c_void, 0, std::ptr::null()));
+            cl_check(cl3::command_queue::enqueue_read_buffer(self.command_queue, buffer.handle(), CL_FALSE, 0, buffer.size(), data as *mut u8 as *mut c_void, 0, std::ptr::null()));
         }
     }
 }

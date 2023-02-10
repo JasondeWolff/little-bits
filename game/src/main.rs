@@ -36,8 +36,7 @@ impl Game for Example {
         app().graphics().set_render_camera(self.camera.clone());
         self.camera.as_mut().set_translation(Float3::new(-0.54, 0.0, 0.54));
 
-        //self.model = app().resources().get_model(String::from("assets/test_models/DamagedHelmet/glTF/DamagedHelmet.gltf"));
-        self.model = app().resources().get_model(String::from("assets/test_models/AntiqueCamera/glTF/AntiqueCamera.gltf"));
+        self.model = app().resources().get_model(String::from("assets/test_models/DamagedHelmet/glTF/DamagedHelmet.gltf"));
         self.instance = app().graphics().create_dynamic_model_instance(self.model.clone(), None);
 
         let rotation = Quaternion::from(Float3::new(-90.0, 0.0, 0.0));

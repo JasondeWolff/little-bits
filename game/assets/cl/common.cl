@@ -12,7 +12,7 @@ typedef struct _Ray
     float3 direction;
 } Ray;
 
-inline void AtomicAddFloat( volatile __global float* source, const float operand )
+inline void AtomicAddFloat(volatile __global float* source, const float operand)
 {
     union { unsigned int intVal; float floatVal; } newVal;
     union { unsigned int intVal; float floatVal; } prevVal;
