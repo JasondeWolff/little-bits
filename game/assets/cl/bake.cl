@@ -62,7 +62,8 @@ __kernel void render(write_only image2d_t out,
     // Store loss
     {
         float localLoss = cache[OutputNeuron(nn, 0)] * cache[OutputNeuron(nn, 0)] + cache[OutputNeuron(nn, 1)] * cache[OutputNeuron(nn, 1)] + cache[OutputNeuron(nn, 2)] * cache[OutputNeuron(nn, 2)];
-        AtomicAddFloat(&loss[0], localLoss);
+        //AtomicAddFloat(&loss[0], localLoss);
+        loss[0] = localLoss;
     }
 
     Backpropagate(nn, in_weights, out_weights, cache, learningRate * unit);

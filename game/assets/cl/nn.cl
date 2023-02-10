@@ -150,11 +150,36 @@ void Backpropagate(__global NeuralNetwork* nn, __global float* in_weights, __glo
     //     cache[HiddenNeuron(nn, j, l)] = sum;
     // }
 
+
+
+    // for (int j = 0; j < nn->hiddenCount; j++)
+    // {
+    //     float aL1 = cache[HiddenNeuron(nn, j, l)];
+        
+    //     float sum = 0.0f;
+    //     for (int i = 0; i < nn->outputCount; i++)
+    //     {
+    //         float error = 2.0f * cache[OutputNeuron(nn, i)];
+
+    //         float wL = in_weights[HiddenOutputNeuronWeight(nn, j, i)];
+    //         float actDev = DevActivation(wL * aL1); // + bL
+
+    //         float influence = error * actDev * aL1;
+    //         float delta = influence * learningRate;
+    //         AtomicAddFloat(&out_weights[HiddenOutputNeuronWeight(nn, j, i)], delta);
+
+    //         sum += error * in_weights[HiddenOutputNeuronWeight(nn, j, i)];
+    //     }
+
+    //     //cache[HiddenNeuron(nn, j, l)] = sum;
+    // }
+
+
     for (int j = 0; j < nn->hiddenCount; j++)
     {
         float aL1 = cache[HiddenNeuron(nn, j, l)];
         
-        float sum = 0.0f;
+        float influence = 0.0f;
         for (int i = 0; i < nn->outputCount; i++)
         {
             float error = 2.0f * cache[OutputNeuron(nn, i)];
@@ -162,14 +187,13 @@ void Backpropagate(__global NeuralNetwork* nn, __global float* in_weights, __glo
             float wL = in_weights[HiddenOutputNeuronWeight(nn, j, i)];
             float actDev = DevActivation(wL * aL1); // + bL
 
-            float influence = error * actDev * aL1;
-            float delta = influence * learningRate;
-
-            AtomicAddFloat(&out_weights[HiddenOutputNeuronWeight(nn, j, i)], delta);
-
-            sum += error * in_weights[HiddenOutputNeuronWeight(nn, j, i)];
+            influence += error * actDev * aL1;
         }
 
-        //cache[HiddenNeuron(nn, j, l)] = sum;
+        float delta = influence * learningRate;
+        for (int i = 0; i < nn->outputCount; i++)
+        {
+            AtomicAddFloat(&out_weights[HiddenOutputNeuronWeight(nn, j, i)], delta);
+        }
     }
 }
