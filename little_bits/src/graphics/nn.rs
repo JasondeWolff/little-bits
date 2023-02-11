@@ -90,7 +90,7 @@ impl Default for BakeParameters {
             epochs: 100,
             sample_positions: 300,
             sample_distribution: BakeSampleDistribution::Random,
-            sample_resolution: 1024
+            sample_resolution: 512
         }
     }
 }
@@ -186,15 +186,17 @@ impl Baker {
     pub fn bake(&mut self, model: &GLModel, params: &BakeParameters, window: &mut Window, glfw: &mut Glfw) {
         let (min, max) = model.bounds();
         let radius = (max - min).magnitude() * 0.5;
-        let center = (max - min) * 0.5 + min;
+        let center = (max + min) * 0.5;
 
         let mut camera = Camera::new();
         camera.set_aspect_ratio(Some(1.0));
         camera.set_fov(90.0);
         let camera_points = match params.sample_distribution {
-            BakeSampleDistribution::Random => Self::random_sphere_points(params.sample_positions, radius),
-            BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius)
+            BakeSampleDistribution::Random => Self::random_sphere_points(params.sample_positions, radius * 2.0),
+            BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius * 2.0)
         };
+
+        let camera_points = vec![Float3::new(radius * 2.0, 0.0, 0.0)];
 
         assert!(params.sample_resolution > 1, "Failed to bake nemo. (Sample resolution must be 2 or larger)");
 
@@ -236,7 +238,7 @@ impl Baker {
             for camera_point in &camera_points {
                 glfw.poll_events();
 
-                camera.set_translation(-camera_point);
+                camera.set_translation(camera_point.clone());
                 camera.set_rotation(Quaternion::look_rotation(center - camera_point, Float3::up()));
 
                 // Render inputs to rt's

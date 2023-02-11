@@ -93,7 +93,6 @@ impl Camera {
         self.rotation
     }
     
-
     pub fn set_translation(&mut self, translation: Float3) {
         self.translation = translation;
         self.view_dirty = true;
@@ -110,7 +109,9 @@ impl Camera {
 
     pub fn get_view_matrix(&mut self) -> Float4x4 {
         if self.view_dirty {
-            self.view_matrix = Float4x4::translation(-self.translation) * Float4x4::from(self.rotation);
+            let mut rot = Float4x4::from(self.rotation);
+            rot.transpose();
+            self.view_matrix = rot * Float4x4::translation(-self.translation);
             self.view_dirty = false;
         }
 

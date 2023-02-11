@@ -68,7 +68,7 @@ __kernel void render(write_only image2d_t out,
 
     Backpropagate(nn, in_weights, out_weights, cache, learningRate * unit);
 
-    //color = read_imagef(base_color_target, (int2)(x, y)).xyz;
+    color = read_imagef(base_color_target, (int2)(x, y)).xyz;
 
     write_imagef(out, (int2)(x, y), (float4)(color, 1.0));
 }
