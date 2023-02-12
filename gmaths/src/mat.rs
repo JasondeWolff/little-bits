@@ -1,4 +1,4 @@
-use std::ops::{Mul, Index, IndexMut};
+use std::ops::{Mul, Index, IndexMut, AddAssign, DivAssign};
 use std::mem;
 use rand::{Rand, Rng};
 use num::{Float};
@@ -109,6 +109,30 @@ impl<T: Float + Default> Matrix4<T> {
 		*mat4.at_mut(2, 0) = axis.x * axis.z * omc + axis.y * s;
 		*mat4.at_mut(2, 1) = axis.y * axis.z * omc - axis.x * s;
 		*mat4.at_mut(2, 2) = axis.z * omc + c;
+        mat4
+    }
+
+    #[inline]
+    pub fn look_at(eye: Vector3<T>, target: Vector3<T>, up: Vector3<T>) -> Matrix4<T> where T: Float + Default + AddAssign<T> + DivAssign<T> {
+        let mut mat4 = Self::identity();
+
+        let forward = (eye - target).normalized();
+        let right = up.cross(forward).normalized();
+        let up = forward.cross(right);
+        
+        *mat4.at_mut(0, 0) = right.x;
+		*mat4.at_mut(0, 1) = up.x;
+		*mat4.at_mut(0, 2) = forward.x;
+		*mat4.at_mut(1, 0) = right.y;
+		*mat4.at_mut(1, 1) = up.y;
+		*mat4.at_mut(1, 2) = forward.y;
+		*mat4.at_mut(2, 0) = right.z;
+		*mat4.at_mut(2, 1) = up.z;
+		*mat4.at_mut(2, 2) = forward.z;
+        *mat4.at_mut(3, 0) = -right.dot(eye);
+        *mat4.at_mut(3, 1) = -up.dot(eye);
+        *mat4.at_mut(3, 2) = -forward.dot(eye);
+        
         mat4
     }
 

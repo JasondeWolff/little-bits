@@ -111,7 +111,8 @@ impl Camera {
         if self.view_dirty {
             let mut rot = Float4x4::from(self.rotation);
             rot.transpose();
-            self.view_matrix = rot * Float4x4::translation(-self.translation);
+            // self.view_matrix = rot * Float4x4::translation(-self.translation);
+            self.view_matrix = Float4x4::translation(-self.translation) * Float4x4::from(self.rotation);
             self.view_dirty = false;
         }
 

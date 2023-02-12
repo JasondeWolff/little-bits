@@ -192,11 +192,9 @@ impl Baker {
         camera.set_aspect_ratio(Some(1.0));
         camera.set_fov(90.0);
         let camera_points = match params.sample_distribution {
-            BakeSampleDistribution::Random => Self::random_sphere_points(params.sample_positions, radius * 2.0),
-            BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius * 2.0)
+            BakeSampleDistribution::Random => Self::random_sphere_points(params.sample_positions, radius * 1.5),
+            BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius * 1.5)
         };
-
-        let camera_points = vec![Float3::new(radius * 2.0, 0.0, 0.0)];
 
         assert!(params.sample_resolution > 1, "Failed to bake nemo. (Sample resolution must be 2 or larger)");
 
@@ -238,9 +236,6 @@ impl Baker {
             for camera_point in &camera_points {
                 glfw.poll_events();
 
-                camera.set_translation(camera_point.clone());
-                camera.set_rotation(Quaternion::look_rotation(center - camera_point, Float3::up()));
-
                 // Render inputs to rt's
                 gl_viewport(Int2::new(params.sample_resolution as i32, params.sample_resolution as i32));
                 {
@@ -253,7 +248,7 @@ impl Baker {
                             self.shader_program.bind(); {
                                 self.shader_program.set_float4x4(&String::from("model"), Float4x4::identity());
                                 self.shader_program.set_float4x4(&String::from("projection"), camera.get_proj_matrix());
-                                self.shader_program.set_float4x4(&String::from("view"), camera.get_view_matrix());
+                                self.shader_program.set_float4x4(&String::from("view"), Float4x4::look_at(camera_point.clone(), center, Float3::up()));
                             
                                 let material = &materials[mesh.material_idx()];
                                 material.bind(&mut self.shader_program);
