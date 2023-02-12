@@ -232,6 +232,8 @@ impl Baker {
 
         println!("Using {}B per kernel", neural_network.required_cache_size());
 
+        gl_clear_color(Float3::new(1.0, 0.0, 0.0));
+
         for e in 0..params.epochs {
             for camera_point in &camera_points {
                 glfw.poll_events();

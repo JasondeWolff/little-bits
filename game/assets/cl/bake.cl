@@ -1,3 +1,7 @@
+#pragma OPENCL EXTENSION cl_intel_printf : enable
+
+#define DEBUG_MODE
+
 #include "common.cl"
 #include "nn.cl"
 
@@ -21,6 +25,9 @@ __kernel void render(write_only image2d_t out,
 
     float learningRate = 1.0f;
 
+    // Allows a single printf per kernel
+    bool oc = true;
+
     // Construct ray from camera
     Ray ray;
     {
@@ -38,35 +45,35 @@ __kernel void render(write_only image2d_t out,
 
     // Set neural network inputs
     {
-        cache[InputNeuron(nn, 0)] = ray.origin.x;
-        cache[InputNeuron(nn, 1)] = ray.origin.y;
-        cache[InputNeuron(nn, 2)] = ray.origin.z;
-        cache[InputNeuron(nn, 3)] = ray.direction.x;
-        cache[InputNeuron(nn, 4)] = ray.direction.y;
+        cache[InputNeuron(nn, 0, &oc)] = ray.origin.x;
+        cache[InputNeuron(nn, 1, &oc)] = ray.origin.y;
+        cache[InputNeuron(nn, 2, &oc)] = ray.origin.z;
+        cache[InputNeuron(nn, 3, &oc)] = ray.direction.x;
+        cache[InputNeuron(nn, 4, &oc)] = ray.direction.y;
     }
 
-    Forward(nn, in_weights, cache);
-    float3 color = (float3)(cache[OutputNeuron(nn, 0)], cache[OutputNeuron(nn, 1)], cache[OutputNeuron(nn, 2)]);
+    Forward(&oc, nn, in_weights, cache);
+    float3 color = (float3)(cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 1, &oc)], cache[OutputNeuron(nn, 2, &oc)]);
     // if (cache[OutputNeuron(nn, 3)] < 0.5)
     //     color = (float3)0;
 
     // Calculate errors
     {
         float4 target = read_imagef(base_color_target, (int2)(x, y));
-        cache[OutputNeuron(nn, 0)] = cache[OutputNeuron(nn, 0)] - target.r;
-        cache[OutputNeuron(nn, 1)] = cache[OutputNeuron(nn, 1)] - target.g;
-        cache[OutputNeuron(nn, 2)] = cache[OutputNeuron(nn, 2)] - target.b;
+        cache[OutputNeuron(nn, 0, &oc)] = cache[OutputNeuron(nn, 0, &oc)] - target.r;
+        cache[OutputNeuron(nn, 1, &oc)] = cache[OutputNeuron(nn, 1, &oc)] - target.g;
+        cache[OutputNeuron(nn, 2, &oc)] = cache[OutputNeuron(nn, 2, &oc)] - target.b;
         //cache[OutputNeuron(nn, 3)] = cache[OutputNeuron(nn, 3)] - target.a;
     }
 
     // Store loss
     {
-        float localLoss = cache[OutputNeuron(nn, 0)] * cache[OutputNeuron(nn, 0)] + cache[OutputNeuron(nn, 1)] * cache[OutputNeuron(nn, 1)] + cache[OutputNeuron(nn, 2)] * cache[OutputNeuron(nn, 2)];
-        //AtomicAddFloat(&loss[0], localLoss);
-        loss[0] = localLoss;
+        float localLoss = cache[OutputNeuron(nn, 0, &oc)] * cache[OutputNeuron(nn, 0, &oc)] + cache[OutputNeuron(nn, 1, &oc)] * cache[OutputNeuron(nn, 1, &oc)] + cache[OutputNeuron(nn, 2, &oc)] * cache[OutputNeuron(nn, 2, &oc)];
+        AtomicAddFloat(&loss[0], localLoss);
+        //loss[0] = localLoss;
     }
 
-    Backpropagate(nn, in_weights, out_weights, cache, learningRate * unit);
+    Backpropagate(&oc, nn, in_weights, out_weights, cache, learningRate * unit);
 
     color = read_imagef(base_color_target, (int2)(x, y)).xyz;
 
