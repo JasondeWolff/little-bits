@@ -34,7 +34,7 @@ int InputHiddenNeuronWeight(__global NeuralNetwork* nn, int inputIndex, int hidd
 int HiddenHiddenNeuronWeight(__global NeuralNetwork* nn, int hiddenIndex, int nextHiddenIndex, int hiddenLayerIndex, bool* oc)
 {
 #ifdef DEBUG_MODE
-    if (hiddenIndex < 0 || hiddenIndex >= nn->hiddenCount || nextHiddenIndex < 0 || nextHiddenIndex >= nn->hiddenCount || hiddenLayerIndex < 0 || hiddenLayerIndex >= nn->hiddenLayerCount)
+    if (hiddenIndex < 0 || hiddenIndex >= nn->hiddenCount || nextHiddenIndex < 0 || nextHiddenIndex >= nn->hiddenCount || hiddenLayerIndex < 0 || hiddenLayerIndex >= nn->hiddenLayerCount - 1)
     {
         if (*oc)
         {
@@ -47,9 +47,9 @@ int HiddenHiddenNeuronWeight(__global NeuralNetwork* nn, int hiddenIndex, int ne
             {
                 printf("nextHiddenIndex = %i range = [0, %i>\n", nextHiddenIndex, nn->hiddenCount);
             }
-            if (hiddenLayerIndex < 0 || hiddenLayerIndex >= nn->hiddenLayerCount)
+            if (hiddenLayerIndex < 0 || hiddenLayerIndex >= nn->hiddenLayerCount - 1)
             {
-                printf("hiddenLayerIndex = %i range = [0, %i>\n", hiddenLayerIndex, nn->hiddenLayerCount);
+                printf("hiddenLayerIndex = %i range = [0, %i>\n", hiddenLayerIndex, nn->hiddenLayerCount - 1);
             }
 
             *oc = false;
@@ -85,7 +85,7 @@ int HiddenOutputNeuronWeight(__global NeuralNetwork* nn, int hiddenIndex, int ou
 #endif
 
     int inputWeightsOffset = nn->inputCount * nn->hiddenCount;
-    int hiddenWeightsOffset = nn->hiddenCount * nn->hiddenCount * nn->hiddenLayerCount;
+    int hiddenWeightsOffset = nn->hiddenCount * nn->hiddenCount * nn->hiddenLayerCount - 1;
     return inputWeightsOffset + hiddenWeightsOffset + outputIndex + hiddenIndex * nn->outputCount;
 }
 
@@ -150,6 +150,70 @@ int OutputNeuron(__global NeuralNetwork* nn, int outputIndex, bool* oc)
     return nn->inputCount + nn->hiddenLayerCount * nn->hiddenCount + outputIndex;
 }
 
+int InputNeuronDelta(__global NeuralNetwork* nn, int inputIndex, bool* oc) 
+{
+#ifdef DEBUG_MODE
+    if (inputIndex < 0 || inputIndex >= nn->inputCount)
+    {
+        if (*oc)
+        {
+            printf("[OpenCL][ERROR] inputIndex is out of range. (InputNeuron)\n");
+            printf("inputIndex = %i range = [0, %i>\n", inputIndex, nn->inputCount);
+
+            *oc = false;
+        }
+    }
+#endif
+
+    int neuronOffset = nn->inputCount + nn->hiddenLayerCount * nn->hiddenCount + nn->outputCount;
+    return neuronOffset + inputIndex;
+}
+
+int HiddenNeuronDelta(__global NeuralNetwork* nn, int hiddenIndex, int hiddenLayer, bool* oc) 
+{
+#ifdef DEBUG_MODE
+    if (hiddenIndex < 0 || hiddenIndex >= nn->hiddenCount || hiddenLayer < 0 || hiddenLayer >= nn->hiddenLayerCount)
+    {
+        if (*oc)
+        {
+            printf("[OpenCL][ERROR] hiddenIndex or hiddenLayer is out of range. (HiddenNeuron)\n");
+            if (hiddenIndex < 0 || hiddenIndex >= nn->hiddenCount)
+            {
+                printf("hiddenIndex = %i range = [0, %i>\n", hiddenIndex, nn->hiddenCount);
+            }
+            if (hiddenLayer < 0 || hiddenLayer >= nn->hiddenLayerCount)
+            {
+                printf("hiddenLayer = %i range = [0, %i>\n", hiddenLayer, nn->hiddenLayerCount);
+            }
+
+            *oc = false;
+        }
+    }
+#endif
+
+    int neuronOffset = nn->inputCount + nn->hiddenLayerCount * nn->hiddenCount + nn->outputCount;
+    return neuronOffset + nn->inputCount + hiddenLayer * nn->hiddenCount + hiddenIndex;
+}
+
+int OutputNeuronDelta(__global NeuralNetwork* nn, int outputIndex, bool* oc) 
+{
+#ifdef DEBUG_MODE
+    if (outputIndex < 0 || outputIndex >= nn->outputCount)
+    {
+        if (*oc)
+        {
+            printf("[OpenCL][ERROR] outputIndex is out of range. (OutputNeuron)\n");
+            printf("outputIndex = %i range = [0, %i>\n", outputIndex, nn->outputCount);
+
+            *oc = false;
+        }
+    }
+#endif
+
+    int neuronOffset = nn->inputCount + nn->hiddenLayerCount * nn->hiddenCount + nn->outputCount;
+    return neuronOffset + nn->inputCount + nn->hiddenLayerCount * nn->hiddenCount + outputIndex;
+}
+
 inline float ReLU(float x)
 {
     return max(0.0f, x);
@@ -194,7 +258,7 @@ float DevActivation(float x)
 #endif
 }
 
-void Forward(bool* oc, __global NeuralNetwork* nn, __global float* weights, __local float* cache)
+void Forward(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, __local float* cache)
 {
     // Input -> Hidden
     for (int i = 0; i < nn->hiddenCount; i++)
@@ -202,7 +266,7 @@ void Forward(bool* oc, __global NeuralNetwork* nn, __global float* weights, __lo
         float sum = 0.0f;
         for (int j = 0; j < nn->inputCount; j++)
         {
-            sum += cache[InputNeuron(nn, j, oc)] * weights[InputHiddenNeuronWeight(nn, j, i, oc)];
+            sum += cache[InputNeuron(nn, j, oc)] * in_weights[InputHiddenNeuronWeight(nn, j, i, oc)];
         }
         cache[HiddenNeuron(nn, i, 0, oc)] = Activation(sum);
     }
@@ -215,7 +279,7 @@ void Forward(bool* oc, __global NeuralNetwork* nn, __global float* weights, __lo
             float sum = 0.0f;
             for (int j = 0; j < nn->hiddenCount; j++)
             {
-                sum += cache[HiddenNeuron(nn, j, l, oc)] * weights[HiddenHiddenNeuronWeight(nn, j, i, l, oc)];
+                sum += cache[HiddenNeuron(nn, j, l, oc)] * in_weights[HiddenHiddenNeuronWeight(nn, j, i, l, oc)];
             }
             cache[HiddenNeuron(nn, i, l + 1, oc)] = Activation(sum);
         }
@@ -228,7 +292,7 @@ void Forward(bool* oc, __global NeuralNetwork* nn, __global float* weights, __lo
         float sum = 0.0f;
         for (int j = 0; j < nn->hiddenCount; j++)
         {
-            sum += cache[HiddenNeuron(nn, j, l, oc)] * weights[HiddenOutputNeuronWeight(nn, j, i, oc)];
+            sum += cache[HiddenNeuron(nn, j, l, oc)] * in_weights[HiddenOutputNeuronWeight(nn, j, i, oc)];
         }
         cache[OutputNeuron(nn, i, oc)] = Activation(sum);
     }
@@ -236,82 +300,70 @@ void Forward(bool* oc, __global NeuralNetwork* nn, __global float* weights, __lo
 
 void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, __global float* out_weights, __local float* cache, float learningRate)
 {
-    // Output -> Hidden
-    int l = nn->hiddenLayerCount - 1;
-    for (int j = 0; j < nn->hiddenCount; j++)
+    // Calculate deltas
     {
-        float aL1 = cache[HiddenNeuron(nn, j, l, oc)];
-        
-        float influence = 0.0f;
+        // Output deltas
         for (int i = 0; i < nn->outputCount; i++)
         {
-            float error = 2.0f * cache[OutputNeuron(nn, i, oc)];
-
-            float wL = in_weights[HiddenOutputNeuronWeight(nn, j, i, oc)];
-            float actDev = DevActivation(wL * aL1); // + bL
-
-            influence += error * actDev * aL1;
+            float error = cache[OutputNeuron(nn, i, oc)];
+            cache[OutputNeuronDelta(nn, i, oc)] = DevActivation(error);
         }
 
-        float delta = influence * learningRate;
-        for (int i = 0; i < nn->outputCount; i++)
+        // Hidden deltas
+        for (int l = nn->hiddenLayerCount - 1; l >= 0; l--)
         {
-            AtomicAddFloat(&out_weights[HiddenOutputNeuronWeight(nn, j, i, oc)], delta);
+            for (int i = 0; i < nn->hiddenCount; i++)
+            {
+                float error = 0.0;
+                if (l == nn->hiddenLayerCount - 1)
+                {
+                    for (int j = 0; j < nn->outputCount; j++)
+                    {
+                        error += in_weights[HiddenOutputNeuronWeight(nn, i, j, oc)] * cache[OutputNeuronDelta(nn, j, oc)];
+                    }
+                }
+                else
+                {
+                    for (int j = 0; j < nn->hiddenCount; j++)
+                    {
+                         error += in_weights[HiddenHiddenNeuronWeight(nn, i, j, l, oc)] * cache[HiddenNeuronDelta(nn, j, l + 1, oc)];
+                    }
+                }
+                cache[HiddenNeuronDelta(nn, i, l, oc)] = DevActivation(error);
+            }
         }
-
-        cache[HiddenNeuron(nn, j, l, oc)] = influence;
     }
 
-    // Hidden -> Hidden
-    for (l = nn->hiddenLayerCount - 1; l > 0; l--)
+    // Input <- Hidden
+    for (int i = 0; i < nn->inputCount; i++)
     {
         for (int j = 0; j < nn->hiddenCount; j++)
         {
-            float aL1 = cache[HiddenNeuron(nn, j, l - 1, oc)];
-
-            float influence = 0.0f;
-            for (int i = 0; i < nn->hiddenCount; i++)
-            {
-                float error = 2.0f * cache[HiddenNeuron(nn, i, l, oc)];
-
-                float wL = in_weights[HiddenHiddenNeuronWeight(nn, j, i, l - 1, oc)];
-                float actDev = DevActivation(wL * aL1); // + bL
-
-                influence += error * actDev * aL1;
-            }
-
-            float delta = influence * learningRate;
-            for (int i = 0; i < nn->hiddenCount; i++)
-            {
-                AtomicAddFloat(&out_weights[HiddenHiddenNeuronWeight(nn, j, i, l - 1, oc)], delta);
-            }
-
-            cache[HiddenNeuron(nn, j, l - 1, oc)] = influence;
+            float delta = learningRate * cache[HiddenNeuronDelta(nn, j, 0, oc)] * cache[InputNeuron(nn, i, oc)];
+            AtomicAddFloat(&out_weights[InputHiddenNeuronWeight(nn, i, j, oc)], delta);
         }
     }
 
-    // // Hidden -> Input
-    // for (int j = 0; j < nn->inputCount; j++)
-    // {
-    //     float aL1 = cache[InputNeuron(nn, j, oc)];
+    // Hidden <- Hidden
+    for (int l = 0; l < nn->hiddenLayerCount - 1; l++)
+    {
+        for (int i = 0; i < nn->hiddenCount; i++)
+        {
+            for (int j = 0; j < nn->hiddenCount; j++)
+            {
+                float delta = learningRate * cache[HiddenNeuronDelta(nn, j, l + 1, oc)] * cache[HiddenNeuron(nn, i, l, oc)];
+                AtomicAddFloat(&out_weights[HiddenHiddenNeuronWeight(nn, i, j, l, oc)], delta);
+            }
+        }
+    }
 
-    //     float influence = 0.0f;
-    //     for (int i = 0; i < nn->hiddenCount; i++)
-    //     {
-    //         float error = 2.0f * cache[HiddenNeuron(nn, i, 0, oc)];
-
-    //         float wL = in_weights[InputHiddenNeuronWeight(nn, j, i, oc)];
-    //         float actDev = DevActivation(wL * aL1); // + bL
-
-    //         influence += error * actDev * aL1;
-    //     }
-
-    //     float delta = influence * learningRate;
-    //     for (int i = 0; i < nn->hiddenCount; i++)
-    //     {
-    //         AtomicAddFloat(&out_weights[InputHiddenNeuronWeight(nn, j, i, oc)], delta);
-    //     }
-
-    //     //cache[InputNeuron(nn, j, oc)] = influence;
-    // }
+    // Hidden <- Output
+    for (int i = 0; i < nn->hiddenCount; i++)
+    {
+        for (int j = 0; j < nn->outputCount; j++)
+        {
+            float delta = learningRate * cache[OutputNeuronDelta(nn, j, oc)] * cache[HiddenNeuron(nn, i, nn->hiddenLayerCount - 1, oc)];
+            AtomicAddFloat(&out_weights[HiddenOutputNeuronWeight(nn, i, j, oc)], delta);
+        }
+    }
 }

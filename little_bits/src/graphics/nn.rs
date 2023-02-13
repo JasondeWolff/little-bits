@@ -26,7 +26,7 @@ impl NeuralNetwork {
 
         let mut rng = rand::thread_rng();
         for _ in 0..weights.capacity() {
-            weights.push(rng.gen_range(-1.0, 1.0));
+            weights.push(rng.gen_range(0.0, 1.0));
         }
         
         NeuralNetwork {
@@ -39,7 +39,7 @@ impl NeuralNetwork {
     }
 
     fn required_cache_size(&self) -> usize {
-        (self.input_count + self.hidden_count * self.hidden_layer_count + self.output_count) as usize * 4
+        (self.input_count + self.hidden_count * self.hidden_layer_count + self.output_count) as usize * 2 * 4
     }
 }
 
@@ -90,7 +90,7 @@ impl Default for BakeParameters {
             epochs: 100,
             sample_positions: 300,
             sample_distribution: BakeSampleDistribution::Random,
-            sample_resolution: 512
+            sample_resolution: 16
         }
     }
 }
@@ -196,6 +196,8 @@ impl Baker {
             BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius * 1.5)
         };
 
+        let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
+
         assert!(params.sample_resolution > 1, "Failed to bake nemo. (Sample resolution must be 2 or larger)");
 
         let base_color_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
@@ -276,6 +278,7 @@ impl Baker {
                     self.command_queue.write_buffer(&cl_camera, &mut cl_camera_rep as *mut CLCamera as *mut c_void);
                     self.command_queue.write_buffer(&cl_neural_network, &mut cl_nn_rep as *mut CLNeuralNetwork as *mut c_void);
                     self.command_queue.write_buffer(&cl_in_weights, neural_network.weights.as_mut_ptr() as *mut c_void);
+                    self.command_queue.write_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr() as *mut c_void);
                     let mut zero = 0.0f32;
                     self.command_queue.write_buffer(&cl_loss, &mut zero as *mut f32 as *mut c_void);
 

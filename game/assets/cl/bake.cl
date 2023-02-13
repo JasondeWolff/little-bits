@@ -30,7 +30,7 @@ __kernel void render(write_only image2d_t out,
 	const size_t height = get_global_size(1);
     const float unit = 1.0f / (width * height);
 
-    float learningRate = 1.0f;
+    float learningRate = 0.5f;
 
     // Allows a single printf per kernel
     bool oc = true;
@@ -52,11 +52,17 @@ __kernel void render(write_only image2d_t out,
 
     // Set neural network inputs
     {
-        cache[InputNeuron(nn, 0, &oc)] = ray.origin.x;
-        cache[InputNeuron(nn, 1, &oc)] = ray.origin.y;
-        cache[InputNeuron(nn, 2, &oc)] = ray.origin.z;
-        cache[InputNeuron(nn, 3, &oc)] = ray.direction.x;
-        cache[InputNeuron(nn, 4, &oc)] = ray.direction.y;
+        // cache[InputNeuron(nn, 0, &oc)] = ray.origin.x;
+        // cache[InputNeuron(nn, 1, &oc)] = ray.origin.y;
+        // cache[InputNeuron(nn, 2, &oc)] = ray.origin.z;
+        // cache[InputNeuron(nn, 3, &oc)] = ray.direction.x;
+        // cache[InputNeuron(nn, 4, &oc)] = ray.direction.y;
+
+        cache[InputNeuron(nn, 0, &oc)] = 1.0;
+        cache[InputNeuron(nn, 1, &oc)] = 1.0;
+        cache[InputNeuron(nn, 2, &oc)] = 1.0;
+        cache[InputNeuron(nn, 3, &oc)] = 1.0;
+        cache[InputNeuron(nn, 4, &oc)] = 1.0;
     }
 
     Forward(&oc, nn, in_weights, cache);
@@ -67,22 +73,22 @@ __kernel void render(write_only image2d_t out,
     // Calculate errors
     {
         float4 target = read_imagef(base_color_target, (int2)(x, y));
-        cache[OutputNeuron(nn, 0, &oc)] = cache[OutputNeuron(nn, 0, &oc)] - target.r;
-        cache[OutputNeuron(nn, 1, &oc)] = cache[OutputNeuron(nn, 1, &oc)] - target.g;
-        cache[OutputNeuron(nn, 2, &oc)] = cache[OutputNeuron(nn, 2, &oc)] - target.b;
+        cache[OutputNeuron(nn, 0, &oc)] = 0.0 - cache[OutputNeuron(nn, 0, &oc)];
+        cache[OutputNeuron(nn, 1, &oc)] = 1.0 - cache[OutputNeuron(nn, 1, &oc)];
+        cache[OutputNeuron(nn, 2, &oc)] = 0.0 - cache[OutputNeuron(nn, 2, &oc)];
         //cache[OutputNeuron(nn, 3)] = cache[OutputNeuron(nn, 3)] - target.a;
     }
 
     // Store loss
     {
-        float localLoss = cache[OutputNeuron(nn, 0, &oc)] * cache[OutputNeuron(nn, 0, &oc)] + cache[OutputNeuron(nn, 1, &oc)] * cache[OutputNeuron(nn, 1, &oc)] + cache[OutputNeuron(nn, 2, &oc)] * cache[OutputNeuron(nn, 2, &oc)];
+        // float localLoss = cache[OutputNeuron(nn, 0, &oc)] * cache[OutputNeuron(nn, 0, &oc)] + cache[OutputNeuron(nn, 1, &oc)] * cache[OutputNeuron(nn, 1, &oc)] + cache[OutputNeuron(nn, 2, &oc)] * cache[OutputNeuron(nn, 2, &oc)];
+        float localLoss = cache[OutputNeuron(nn, 0, &oc)] + cache[OutputNeuron(nn, 1, &oc)] + cache[OutputNeuron(nn, 2, &oc)];
         AtomicAddFloat(&loss[0], localLoss);
-        //loss[0] = localLoss;
     }
 
     Backpropagate(&oc, nn, in_weights, out_weights, cache, learningRate * unit);
 
-    color = read_imagef(base_color_target, (int2)(x, y)).xyz;
+    //color = read_imagef(base_color_target, (int2)(x, y)).xyz;
 
     write_imagef(out, (int2)(x, y), (float4)(color, 1.0));
 }
