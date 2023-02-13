@@ -52,17 +52,11 @@ __kernel void render(write_only image2d_t out,
 
     // Set neural network inputs
     {
-        // cache[InputNeuron(nn, 0, &oc)] = ray.origin.x;
-        // cache[InputNeuron(nn, 1, &oc)] = ray.origin.y;
-        // cache[InputNeuron(nn, 2, &oc)] = ray.origin.z;
-        // cache[InputNeuron(nn, 3, &oc)] = ray.direction.x;
-        // cache[InputNeuron(nn, 4, &oc)] = ray.direction.y;
-
-        cache[InputNeuron(nn, 0, &oc)] = 1.0;
-        cache[InputNeuron(nn, 1, &oc)] = 1.0;
-        cache[InputNeuron(nn, 2, &oc)] = 1.0;
-        cache[InputNeuron(nn, 3, &oc)] = 1.0;
-        cache[InputNeuron(nn, 4, &oc)] = 1.0;
+        cache[InputNeuron(nn, 0, &oc)] = ray.origin.x;
+        cache[InputNeuron(nn, 1, &oc)] = ray.origin.y;
+        cache[InputNeuron(nn, 2, &oc)] = ray.origin.z;
+        cache[InputNeuron(nn, 3, &oc)] = ray.direction.x;
+        cache[InputNeuron(nn, 4, &oc)] = ray.direction.y;
     }
 
     Forward(&oc, nn, in_weights, cache);

@@ -22,7 +22,8 @@ struct NeuralNetwork {
 impl NeuralNetwork {
     fn new(input_count: i32, hidden_count: i32, output_count: i32, hidden_layer_count: i32) -> Self {
         let weight_count = input_count * hidden_count + hidden_count * hidden_count * hidden_layer_count + hidden_count * output_count;
-        let mut weights = Vec::with_capacity(weight_count as usize);
+        let bias_count = hidden_count * hidden_layer_count + output_count;
+        let mut weights = Vec::with_capacity((weight_count + bias_count) as usize);
 
         let mut rng = rand::thread_rng();
         for _ in 0..weights.capacity() {
@@ -90,7 +91,7 @@ impl Default for BakeParameters {
             epochs: 100,
             sample_positions: 300,
             sample_distribution: BakeSampleDistribution::Random,
-            sample_resolution: 16
+            sample_resolution: 512
         }
     }
 }
