@@ -276,7 +276,8 @@ impl Baker {
                     self.command_queue.write_buffer(&cl_camera, &mut cl_camera_rep as *mut CLCamera as *mut c_void);
                     self.command_queue.write_buffer(&cl_neural_network, &mut cl_nn_rep as *mut CLNeuralNetwork as *mut c_void);
                     self.command_queue.write_buffer(&cl_in_weights, neural_network.weights.as_mut_ptr() as *mut c_void);
-                    self.command_queue.write_buffer(&cl_loss, &mut 0.0f32 as *mut f32 as *mut c_void);
+                    let mut zero = 0.0f32;
+                    self.command_queue.write_buffer(&cl_loss, &mut zero as *mut f32 as *mut c_void);
 
                     self.kernel.set_arg_buffer(0, &cl_display_target);
                     self.kernel.set_arg_buffer(1, &cl_base_color);
@@ -288,9 +289,10 @@ impl Baker {
                     self.kernel.set_arg_buffer(7, &cl_in_weights);
                     self.kernel.set_arg_buffer(8, &cl_out_weights);
                     self.kernel.set_arg_empty(9, neural_network.required_cache_size());
-                    self.kernel.set_arg_buffer(10, &cl_loss);
+                    self.kernel.set_arg_int(10, (neural_network.required_cache_size() / 4) as i32);
+                    self.kernel.set_arg_buffer(11, &cl_loss);
 
-                    let local_work_dims = vec![2, 2];
+                    let local_work_dims = vec![1, 1];
                     self.command_queue.execute(&self.kernel, &vec![app().graphics().dimensions().x as usize, app().graphics().dimensions().y as usize], Some(&local_work_dims));
                     self.command_queue.finish();
                     

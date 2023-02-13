@@ -292,6 +292,12 @@ impl CLCommandQueue {
             cl_check(cl3::command_queue::enqueue_read_buffer(self.command_queue, buffer.handle(), CL_FALSE, 0, buffer.size(), data as *mut u8 as *mut c_void, 0, std::ptr::null()));
         }
     }
+
+    pub fn fill_buffer<T>(&self, buffer: &CLBuffer, value: T) {
+        unsafe {
+            cl_check(cl3::command_queue::enqueue_fill_buffer(self.command_queue, buffer.handle(), &value as *const T as *const c_void, std::mem::size_of::<T>(), 0, buffer.size(), 0, std::ptr::null_mut()));
+        }
+    }
 }
 
 impl Drop for CLCommandQueue {

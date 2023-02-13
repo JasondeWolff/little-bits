@@ -14,9 +14,16 @@ __kernel void render(write_only image2d_t out,
     __global NeuralNetwork* nn,
     __global float* in_weights,
     __global float* out_weights,
-    __local float* cache,
+    __local float* cache, int cacheSize,
     __global float* loss)
 {
+    // Zero cache
+    for (int i = 0; i < cacheSize; i++)
+    {
+        cache[i] = 0.0;
+    }
+
+    // Get kernel info
     const size_t x = get_global_id(0);
 	const size_t y = get_global_id(1);
     const size_t width = get_global_size(0);
