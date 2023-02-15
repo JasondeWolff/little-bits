@@ -24,9 +24,13 @@ inline void AtomicAddFloat(volatile __global float* source, const float operand)
     while (atomic_cmpxchg((volatile __global unsigned int*)source, prevVal.intVal, newVal.intVal) != prevVal.intVal);
 }
 
-
-float3 lerp(float3 a, float3 b, float w)
+inline float lerp(float a, float b, float t)
 {
-    float3 t = (float3)(w, w, w);
     return a + t * (b - a);
+}
+
+inline float3 lerp3(float3 a, float3 b, float t)
+{
+    float3 _t = (float3)(t, t, t);
+    return a + _t * (b - a);
 }

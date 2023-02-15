@@ -66,7 +66,7 @@ impl System for Graphics {
     fn init() -> Box<Self> {
         let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
 
-        let default_dimensions = Int2::new(1280, 720);
+        let default_dimensions = Int2::new(512, 512);
 
         glfw.window_hint(glfw::WindowHint::ContextVersion(4, 1));
         glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));

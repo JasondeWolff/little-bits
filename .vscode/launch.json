@@ -20,6 +20,15 @@
             ],
             "cwd": "${workspaceFolder}/game",
             "preLaunchTask": "cargo build release"
+        },
+        {
+            "name": "Release No Rebuild",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/game/target/release/game.exe",
+            "args": [
+            ],
+            "cwd": "${workspaceFolder}/game"
         }
     ]
 }

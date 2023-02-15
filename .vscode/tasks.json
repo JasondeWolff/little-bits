@@ -168,6 +168,15 @@
             "options": {
                 "cwd": "${workspaceFolder}/game/"
             },
-        }
+        },
+
+        {
+            "label": "cargo run game",
+            "type": "cargo",
+            "command": "run",
+            "options": {
+                "cwd": "${workspaceFolder}/game/"
+            },
+        },
     ]
 }

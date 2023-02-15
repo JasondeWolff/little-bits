@@ -283,8 +283,6 @@ float inline DevSigmoid(float x)
 	return x * (1.0f - x);
 }
 
-//#define RELU
-
 float Activation(float x)
 {
 #ifdef RELU

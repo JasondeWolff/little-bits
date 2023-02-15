@@ -2,7 +2,9 @@ extern crate gl_wrapper;
 pub use gl_wrapper::*;
 
 pub struct GLRenderTexture {
-    tex: GLTexture
+    tex: GLTexture,
+    width: usize,
+    height: usize
 }
 
 impl GLRenderTexture {
@@ -16,7 +18,9 @@ impl GLRenderTexture {
         } tex.unbind();
 
         GLRenderTexture {
-            tex: tex
+            tex: tex,
+            width: width,
+            height: height
         }
     }
     pub fn bind(&self, slot: u32) {
@@ -30,5 +34,13 @@ impl GLRenderTexture {
 
     pub fn tex(&self) -> &GLTexture {
         &self.tex
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
     }
 }

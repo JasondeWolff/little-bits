@@ -10,6 +10,63 @@ use crate::app;
 use crate::graphics::camera::*;
 use std::f32::consts::PI;
 
+struct MultiHashGrid {
+    resolution_layers: usize,
+    max_entries: usize,
+    features_per_entry: usize,
+    min_resolution: usize,
+    max_resolution: usize,
+    meta_buffer: CLBuffer,
+    elems: Vec<f32>,
+    elem_buffer: CLBuffer
+}
+
+#[repr(C)]
+struct MultiHashGridMeta {
+    resolution_layers: u32,
+    max_entries: u32,
+    features_per_entry: u32,
+    min_resolution: u32,
+    max_resolution: u32
+}
+
+impl MultiHashGrid {
+    pub fn new(cl_context: &CLContext, resolution_layers: usize, max_entries: usize, features_per_entry: usize, min_resolution: usize, max_resolution: usize) -> Self {
+        MultiHashGrid {
+            resolution_layers: resolution_layers,
+            max_entries: max_entries,
+            features_per_entry: features_per_entry,
+            min_resolution: min_resolution,
+            max_resolution: max_resolution,
+            meta_buffer: CLBuffer::new(cl_context, CLBufferMode::Read, std::mem::size_of::<MultiHashGridMeta>()),
+            elems: vec![0.0; resolution_layers * max_entries * features_per_entry],
+            elem_buffer: CLBuffer::new(cl_context, CLBufferMode::ReadWrite, resolution_layers * max_entries * features_per_entry * 4)
+        }
+    }
+
+    pub fn write(&mut self, cl_command_queue: &CLCommandQueue) {
+        let mut meta = MultiHashGridMeta {
+            resolution_layers: self.resolution_layers as u32,
+            max_entries: self.max_entries as u32,
+            features_per_entry: self.features_per_entry as u32,
+            min_resolution: self.min_resolution as u32,
+            max_resolution: self.max_resolution as u32
+        };
+        cl_command_queue.write_buffer(&self.meta_buffer, &mut meta as *mut MultiHashGridMeta as *mut c_void);
+        cl_command_queue.write_buffer(&self.elem_buffer, self.elems.as_mut_ptr() as *mut c_void);
+    }
+
+    pub fn read(&mut self, cl_command_queue: &CLCommandQueue) {
+        cl_command_queue.read_buffer(&self.elem_buffer, self.elems.as_mut_ptr() as *mut c_void);
+    }
+
+    pub fn set_kernel_arg(&mut self, cl_kernel: &CLKernel, idx: u32) -> u32 {
+        cl_kernel.set_arg_buffer(idx + 0, &self.meta_buffer);
+        cl_kernel.set_arg_buffer(idx + 1, &self.elem_buffer);
+        idx + 2
+    }
+}
+
 struct NeuralNetwork {
     input_count: i32,
     hidden_count: i32,
@@ -41,6 +98,15 @@ impl NeuralNetwork {
 
     fn required_cache_size(&self) -> usize {
         (self.input_count + self.hidden_count * self.hidden_layer_count + self.output_count) as usize * 2 * 4
+    }
+
+    fn fix_nan(&mut self) {
+        let mut rng = rand::thread_rng();
+        for i in 0..self.weights.len() {
+            if f32::is_nan(self.weights[i]) {
+                self.weights[i] = rng.gen_range(0.0, 1.0);
+            }
+        }
     }
 }
 
@@ -88,7 +154,7 @@ pub struct BakeParameters {
 impl Default for BakeParameters {
     fn default() -> Self {
         BakeParameters {
-            epochs: 100,
+            epochs: 10000,
             sample_positions: 300,
             sample_distribution: BakeSampleDistribution::Random,
             sample_resolution: 512
@@ -185,6 +251,8 @@ impl Baker {
     }
 
     pub fn bake(&mut self, model: &GLModel, params: &BakeParameters, window: &mut Window, glfw: &mut Glfw) {
+        assert!(params.sample_resolution > 1, "Failed to bake nemo. (Sample resolution must be 2 or larger)");
+
         let (min, max) = model.bounds();
         let radius = (max - min).magnitude() * 0.5;
         let center = (max + min) * 0.5;
@@ -199,17 +267,12 @@ impl Baker {
 
         let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
 
-        assert!(params.sample_resolution > 1, "Failed to bake nemo. (Sample resolution must be 2 or larger)");
-
         let base_color_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
         let cl_base_color = CLGLTexture2D::new(&self.context, base_color_rt.tex(), CLBufferMode::Read);
-
         let normal_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
         let cl_normal = CLGLTexture2D::new(&self.context, normal_rt.tex(), CLBufferMode::Read);
-
         let mro_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
         let cl_mro = CLGLTexture2D::new(&self.context, mro_rt.tex(), CLBufferMode::Read);
-
         let emission_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
         let cl_emission = CLGLTexture2D::new(&self.context, emission_rt.tex(), CLBufferMode::Read);
 
@@ -220,22 +283,21 @@ impl Baker {
         render_target.set_texture(GLRenderAttachment::Color(3), emission_rt);
         render_target.check();
 
-        let display_target = GLRenderTexture::new(app().graphics().dimensions().x as usize, app().graphics().dimensions().y as usize);
+        let display_target = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
         let cl_display_target = CLGLTexture2D::new(&self.context, display_target.tex(), CLBufferMode::Write);
 
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
-        let mut neural_network = NeuralNetwork::new(5, 8, 3, 2);
+        let mut neural_network = NeuralNetwork::new(2, 64, 3, 3);
+        println!("Using {}B per kernel", neural_network.required_cache_size());
         let mut cl_nn_rep = CLNeuralNetwork::new(&neural_network);
         let cl_neural_network = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<NeuralNetwork>());
         let cl_in_weights = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<f32>() * neural_network.weights.len());
         let cl_out_weights = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>() * neural_network.weights.len());
 
+        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(16), 1, 16, 512);
+
         let cl_loss = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>());
-
-        println!("Using {}B per kernel", neural_network.required_cache_size());
-
-        gl_clear_color(Float3::new(1.0, 0.0, 0.0));
 
         for e in 0..params.epochs {
             for camera_point in &camera_points {
@@ -245,6 +307,7 @@ impl Baker {
                 gl_viewport(Int2::new(params.sample_resolution as i32, params.sample_resolution as i32));
                 {
                     render_target.bind(); {
+                        gl_clear_color(Float3::new(1.0, 0.0, 0.0));
                         gl_clear();
 
                         let materials = &model.materials;
@@ -280,8 +343,8 @@ impl Baker {
                     self.command_queue.write_buffer(&cl_neural_network, &mut cl_nn_rep as *mut CLNeuralNetwork as *mut c_void);
                     self.command_queue.write_buffer(&cl_in_weights, neural_network.weights.as_mut_ptr() as *mut c_void);
                     self.command_queue.write_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr() as *mut c_void);
-                    let mut zero = 0.0f32;
-                    self.command_queue.write_buffer(&cl_loss, &mut zero as *mut f32 as *mut c_void);
+                    self.command_queue.write_buffer(&cl_loss, &mut 0.0f32 as *mut f32 as *mut c_void);
+                    multi_hash_grid.write(&self.command_queue);
 
                     self.kernel.set_arg_buffer(0, &cl_display_target);
                     self.kernel.set_arg_buffer(1, &cl_base_color);
@@ -294,16 +357,19 @@ impl Baker {
                     self.kernel.set_arg_buffer(8, &cl_out_weights);
                     self.kernel.set_arg_empty(9, neural_network.required_cache_size());
                     self.kernel.set_arg_int(10, (neural_network.required_cache_size() / 4) as i32);
-                    self.kernel.set_arg_buffer(11, &cl_loss);
+                    multi_hash_grid.set_kernel_arg(&self.kernel, 11);
+                    self.kernel.set_arg_buffer(13, &cl_loss);
 
                     let local_work_dims = vec![1, 1];
-                    self.command_queue.execute(&self.kernel, &vec![app().graphics().dimensions().x as usize, app().graphics().dimensions().y as usize], Some(&local_work_dims));
+                    self.command_queue.execute(&self.kernel, &vec![display_target.width() as usize, display_target.height() as usize], Some(&local_work_dims));
                     self.command_queue.finish();
                     
                     self.command_queue.read_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr());
+                    neural_network.fix_nan();
                     let mut loss = 0.0f32;
                     self.command_queue.read_buffer(&cl_loss, &mut loss as *mut f32);
                     println!("loss: {}", loss);
+                    multi_hash_grid.read(&self.command_queue);
 
                     // Release gl resources
                     self.command_queue.release_gl_texture(&cl_display_target);

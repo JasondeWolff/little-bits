@@ -3,6 +3,7 @@
 #define DEBUG_MODE
 
 #include "common.cl"
+#include "multi_hash_grid.cl"
 #include "nn.cl"
 
 __kernel void render(write_only image2d_t out,
@@ -15,6 +16,8 @@ __kernel void render(write_only image2d_t out,
     __global float* in_weights,
     __global float* out_weights,
     __local float* cache, int cacheSize,
+    __global MutliHashGridMeta* mhgMeta,
+    __global float* mhgElems,
     __global float* loss)
 {
     // Zero cache
@@ -30,7 +33,7 @@ __kernel void render(write_only image2d_t out,
 	const size_t height = get_global_size(1);
     const float unit = 1.0f / (width * height);
 
-    float learningRate = 0.5f;
+    float learningRate = 10.0f;
 
     // Allows a single printf per kernel
     bool oc = true;
@@ -52,31 +55,33 @@ __kernel void render(write_only image2d_t out,
 
     // Set neural network inputs
     {
-        cache[InputNeuron(nn, 0, &oc)] = ray.origin.x;
-        cache[InputNeuron(nn, 1, &oc)] = ray.origin.y;
-        cache[InputNeuron(nn, 2, &oc)] = ray.origin.z;
-        cache[InputNeuron(nn, 3, &oc)] = ray.direction.x;
-        cache[InputNeuron(nn, 4, &oc)] = ray.direction.y;
+        // cache[InputNeuron(nn, 0, &oc)] = ray.origin.x;
+        // cache[InputNeuron(nn, 1, &oc)] = ray.origin.y;
+        // cache[InputNeuron(nn, 2, &oc)] = ray.origin.z;
+        // cache[InputNeuron(nn, 3, &oc)] = ray.direction.x;
+        // cache[InputNeuron(nn, 4, &oc)] = ray.direction.y;
+
+        float2 uv = (float2)(x, y) / (float2)(width, height);
+        cache[InputNeuron(nn, 0, &oc)] = uv.x;
+        cache[InputNeuron(nn, 1, &oc)] = uv.y;
     }
 
     Forward(&oc, nn, in_weights, cache);
     float3 color = (float3)(cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 1, &oc)], cache[OutputNeuron(nn, 2, &oc)]);
-    // if (cache[OutputNeuron(nn, 3)] < 0.5)
-    //     color = (float3)0;
+
+    float4 target = read_imagef(base_color_target, (int2)(x, y));
 
     // Calculate errors
     {
-        float4 target = read_imagef(base_color_target, (int2)(x, y));
-        cache[OutputNeuron(nn, 0, &oc)] = 0.0 - cache[OutputNeuron(nn, 0, &oc)];
-        cache[OutputNeuron(nn, 1, &oc)] = 1.0 - cache[OutputNeuron(nn, 1, &oc)];
+        cache[OutputNeuron(nn, 0, &oc)] = 1.0 - cache[OutputNeuron(nn, 0, &oc)];
+        cache[OutputNeuron(nn, 1, &oc)] = 0.0 - cache[OutputNeuron(nn, 1, &oc)];
         cache[OutputNeuron(nn, 2, &oc)] = 0.0 - cache[OutputNeuron(nn, 2, &oc)];
         //cache[OutputNeuron(nn, 3)] = cache[OutputNeuron(nn, 3)] - target.a;
     }
 
     // Store loss
     {
-        // float localLoss = cache[OutputNeuron(nn, 0, &oc)] * cache[OutputNeuron(nn, 0, &oc)] + cache[OutputNeuron(nn, 1, &oc)] * cache[OutputNeuron(nn, 1, &oc)] + cache[OutputNeuron(nn, 2, &oc)] * cache[OutputNeuron(nn, 2, &oc)];
-        float localLoss = cache[OutputNeuron(nn, 0, &oc)] + cache[OutputNeuron(nn, 1, &oc)] + cache[OutputNeuron(nn, 2, &oc)];
+        float localLoss = cache[OutputNeuron(nn, 0, &oc)] * cache[OutputNeuron(nn, 0, &oc)] + cache[OutputNeuron(nn, 1, &oc)] * cache[OutputNeuron(nn, 1, &oc)] + cache[OutputNeuron(nn, 2, &oc)] * cache[OutputNeuron(nn, 2, &oc)];
         AtomicAddFloat(&loss[0], localLoss);
     }
 
