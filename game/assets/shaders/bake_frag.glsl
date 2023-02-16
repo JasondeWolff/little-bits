@@ -6,10 +6,11 @@ in vec3 fragPosition;
 in vec2 fragTexCoord;
 in mat3 TBN;
 
-layout(location = 0) out mediump vec4 BaseColor;
-layout(location = 1) out mediump vec4 Normal;
-layout(location = 2) out mediump vec4 MRO;
-layout(location = 3) out mediump vec4 Emission;
+layout(location = 0) out mediump vec4 Position;
+layout(location = 1) out mediump vec4 BaseColor;
+layout(location = 2) out mediump vec4 Normal;
+layout(location = 3) out mediump vec4 MRO;
+layout(location = 4) out mediump vec4 Emission;
 
 uniform struct Material {
     vec4 baseColorFactor;
@@ -31,6 +32,8 @@ uniform struct Material {
     sampler2D occlusionMap;
     sampler2D emissiveMap;
 } material;
+
+uniform vec3 viewPos;
 
 void main()
 {
@@ -73,6 +76,9 @@ void main()
         emission = texture(material.emissiveMap, fragTexCoord).rgb * material.emissiveFactor;
     }
 
+    float d = distance(viewPos, fragPosition);
+
+    Position = vec4(fragPosition, d);
     BaseColor = vec4(albedo, 1.0);
     Normal = vec4(N, 1.0);
     MRO = vec4(metallic, roughness, occlusion, 1.0);

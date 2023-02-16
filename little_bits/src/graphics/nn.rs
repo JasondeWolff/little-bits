@@ -11,59 +11,102 @@ use crate::graphics::camera::*;
 use std::f32::consts::PI;
 
 struct MultiHashGrid {
-    resolution_layers: usize,
-    max_entries: usize,
-    features_per_entry: usize,
-    min_resolution: usize,
-    max_resolution: usize,
+    meta: MultiHashGridMeta,
     meta_buffer: CLBuffer,
     elems: Vec<f32>,
-    elem_buffer: CLBuffer
+    elem_buffer_readonly: CLBuffer,
+    elem_buffer_writeonly: CLBuffer
 }
 
 #[repr(C)]
 struct MultiHashGridMeta {
-    resolution_layers: u32,
-    max_entries: u32,
-    features_per_entry: u32,
-    min_resolution: u32,
-    max_resolution: u32
+    resolution_layers: i32,
+    max_entries: i32,
+    features_per_entry: i32,
+    min_resolution: i32,
+    max_resolution: i32,
+    width: i32,
+    height: i32,
+    depth: i32,
+}
+
+#[repr(C)]
+struct AABB {
+    low: Float3,
+    _0: f32,
+    high: Float3,
+    _1: f32
+}
+
+impl AABB {
+    pub fn new(low: Float3, high: Float3) -> Self {
+        AABB {
+            low: low,
+            _0: 0.0,
+            high: high,
+            _1: 0.0
+        }
+    }
 }
 
 impl MultiHashGrid {
-    pub fn new(cl_context: &CLContext, resolution_layers: usize, max_entries: usize, features_per_entry: usize, min_resolution: usize, max_resolution: usize) -> Self {
+    pub fn new(cl_context: &CLContext, resolution_layers: usize, max_entries: usize, features_per_entry: usize, min_resolution: usize, max_resolution: usize, size: Float3) -> Self {
+        let width = (size.x * 1000.0) as usize;
+        let height = (size.y * 1000.0) as usize;
+        let depth = (size.z * 1000.0) as usize;
+
+        let mut elems = Vec::with_capacity(resolution_layers * max_entries * features_per_entry);
+        let mut rng = rand::thread_rng();
+        for _ in 0..elems.capacity() {
+            elems.push(rng.gen_range(0.0, 1.0));
+        }
+
         MultiHashGrid {
-            resolution_layers: resolution_layers,
-            max_entries: max_entries,
-            features_per_entry: features_per_entry,
-            min_resolution: min_resolution,
-            max_resolution: max_resolution,
-            meta_buffer: CLBuffer::new(cl_context, CLBufferMode::Read, std::mem::size_of::<MultiHashGridMeta>()),
-            elems: vec![0.0; resolution_layers * max_entries * features_per_entry],
-            elem_buffer: CLBuffer::new(cl_context, CLBufferMode::ReadWrite, resolution_layers * max_entries * features_per_entry * 4)
+            meta: MultiHashGridMeta {
+                resolution_layers: resolution_layers as i32,
+                max_entries: max_entries as i32,
+                features_per_entry: features_per_entry as i32,
+                min_resolution: min_resolution as i32,
+                max_resolution: max_resolution as i32,
+                width: width as i32,
+                height: height as i32,
+                depth: depth as i32
+            },
+            meta_buffer: CLBuffer::new(cl_context, CLBufferMode::ReadWrite, std::mem::size_of::<MultiHashGridMeta>()),
+            elems: elems,
+            elem_buffer_readonly: CLBuffer::new(cl_context, CLBufferMode::Read, resolution_layers * max_entries * features_per_entry * 4),
+            elem_buffer_writeonly: CLBuffer::new(cl_context, CLBufferMode::Write, resolution_layers * max_entries * features_per_entry * 4)
         }
     }
 
     pub fn write(&mut self, cl_command_queue: &CLCommandQueue) {
-        let mut meta = MultiHashGridMeta {
-            resolution_layers: self.resolution_layers as u32,
-            max_entries: self.max_entries as u32,
-            features_per_entry: self.features_per_entry as u32,
-            min_resolution: self.min_resolution as u32,
-            max_resolution: self.max_resolution as u32
-        };
-        cl_command_queue.write_buffer(&self.meta_buffer, &mut meta as *mut MultiHashGridMeta as *mut c_void);
-        cl_command_queue.write_buffer(&self.elem_buffer, self.elems.as_mut_ptr() as *mut c_void);
+        cl_command_queue.write_buffer(&self.meta_buffer, &mut self.meta as *mut MultiHashGridMeta as *mut c_void);
+        cl_command_queue.write_buffer(&self.elem_buffer_readonly, self.elems.as_mut_ptr() as *mut c_void);
+        cl_command_queue.write_buffer(&self.elem_buffer_writeonly, self.elems.as_mut_ptr() as *mut c_void);
     }
 
     pub fn read(&mut self, cl_command_queue: &CLCommandQueue) {
-        cl_command_queue.read_buffer(&self.elem_buffer, self.elems.as_mut_ptr() as *mut c_void);
+        cl_command_queue.read_buffer(&self.elem_buffer_writeonly, self.elems.as_mut_ptr() as *mut c_void);
+    }
+
+    fn fix_nan(&mut self) {
+        let mut rng = rand::thread_rng();
+        for i in 0..self.elems.len() {
+            if f32::is_nan(self.elems[i]) {
+                self.elems[i] = rng.gen_range(0.0, 1.0);
+            }
+        }
     }
 
     pub fn set_kernel_arg(&mut self, cl_kernel: &CLKernel, idx: u32) -> u32 {
         cl_kernel.set_arg_buffer(idx + 0, &self.meta_buffer);
-        cl_kernel.set_arg_buffer(idx + 1, &self.elem_buffer);
-        idx + 2
+        cl_kernel.set_arg_buffer(idx + 1, &self.elem_buffer_readonly);
+        cl_kernel.set_arg_buffer(idx + 2, &self.elem_buffer_writeonly);
+        idx + 3
+    }
+
+    pub fn required_nn_inputs(&self) -> usize {
+        (self.meta.resolution_layers * self.meta.features_per_entry) as usize
     }
 }
 
@@ -253,9 +296,14 @@ impl Baker {
     pub fn bake(&mut self, model: &GLModel, params: &BakeParameters, window: &mut Window, glfw: &mut Glfw) {
         assert!(params.sample_resolution > 1, "Failed to bake nemo. (Sample resolution must be 2 or larger)");
 
-        let (min, max) = model.bounds();
-        let radius = (max - min).magnitude() * 0.5;
+        let (mut min, mut max) = model.bounds();
+        min *= 1.5;
+        max *= 1.5;
+
+        let size = max - min;
+        let radius = size.magnitude() * 0.5;
         let center = (max + min) * 0.5;
+        let mut aabb = AABB::new(min, max);
 
         let mut camera = Camera::new();
         camera.set_aspect_ratio(Some(1.0));
@@ -267,6 +315,8 @@ impl Baker {
 
         let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
 
+        let position_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
+        let cl_position = CLGLTexture2D::new(&self.context, position_rt.tex(), CLBufferMode::Read);
         let base_color_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
         let cl_base_color = CLGLTexture2D::new(&self.context, base_color_rt.tex(), CLBufferMode::Read);
         let normal_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
@@ -277,10 +327,11 @@ impl Baker {
         let cl_emission = CLGLTexture2D::new(&self.context, emission_rt.tex(), CLBufferMode::Read);
 
         let mut render_target = GLRenderTarget::new(params.sample_resolution, params.sample_resolution);
-        render_target.set_texture(GLRenderAttachment::Color(0), base_color_rt);
-        render_target.set_texture(GLRenderAttachment::Color(1), normal_rt);
-        render_target.set_texture(GLRenderAttachment::Color(2), mro_rt);
-        render_target.set_texture(GLRenderAttachment::Color(3), emission_rt);
+        render_target.set_texture(GLRenderAttachment::Color(0), position_rt);
+        render_target.set_texture(GLRenderAttachment::Color(1), base_color_rt);
+        render_target.set_texture(GLRenderAttachment::Color(2), normal_rt);
+        render_target.set_texture(GLRenderAttachment::Color(3), mro_rt);
+        render_target.set_texture(GLRenderAttachment::Color(4), emission_rt);
         render_target.check();
 
         let display_target = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
@@ -288,15 +339,16 @@ impl Baker {
 
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
-        let mut neural_network = NeuralNetwork::new(2, 64, 3, 3);
+        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(22), 1, 16, 512, size);
+
+        let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32 + 1, 64, 1, 3);
         println!("Using {}B per kernel", neural_network.required_cache_size());
         let mut cl_nn_rep = CLNeuralNetwork::new(&neural_network);
-        let cl_neural_network = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<NeuralNetwork>());
+        let cl_neural_network = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLNeuralNetwork>());
         let cl_in_weights = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<f32>() * neural_network.weights.len());
         let cl_out_weights = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>() * neural_network.weights.len());
 
-        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(16), 1, 16, 512);
-
+        let cl_aabb = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<AABB>());
         let cl_loss = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>());
 
         for e in 0..params.epochs {
@@ -307,7 +359,7 @@ impl Baker {
                 gl_viewport(Int2::new(params.sample_resolution as i32, params.sample_resolution as i32));
                 {
                     render_target.bind(); {
-                        gl_clear_color(Float3::new(1.0, 0.0, 0.0));
+                        gl_clear_color(Float3::new(0.0, 0.0, 0.0));
                         gl_clear();
 
                         let materials = &model.materials;
@@ -317,7 +369,8 @@ impl Baker {
                                 self.shader_program.set_float4x4(&String::from("model"), Float4x4::identity());
                                 self.shader_program.set_float4x4(&String::from("projection"), camera.get_proj_matrix());
                                 self.shader_program.set_float4x4(&String::from("view"), Float4x4::look_at(camera_point.clone(), center, Float3::up()));
-                            
+                                self.shader_program.set_float3(&String::from("viewPos"), camera_point.clone());
+
                                 let material = &materials[mesh.material_idx()];
                                 material.bind(&mut self.shader_program);
 
@@ -333,6 +386,7 @@ impl Baker {
                 gl_finish();
                 {
                     // Acquire gl resources
+                    self.command_queue.acquire_gl_texture(&cl_position);
                     self.command_queue.acquire_gl_texture(&cl_base_color);
                     self.command_queue.acquire_gl_texture(&cl_normal);
                     self.command_queue.acquire_gl_texture(&cl_mro);
@@ -343,22 +397,26 @@ impl Baker {
                     self.command_queue.write_buffer(&cl_neural_network, &mut cl_nn_rep as *mut CLNeuralNetwork as *mut c_void);
                     self.command_queue.write_buffer(&cl_in_weights, neural_network.weights.as_mut_ptr() as *mut c_void);
                     self.command_queue.write_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr() as *mut c_void);
-                    self.command_queue.write_buffer(&cl_loss, &mut 0.0f32 as *mut f32 as *mut c_void);
                     multi_hash_grid.write(&self.command_queue);
+                    self.command_queue.write_buffer(&cl_aabb, &mut aabb as *mut AABB as *mut c_void);
+                    let mut zero = 0.0f32;
+                    self.command_queue.write_buffer(&cl_loss, &mut zero as *mut f32 as *mut c_void);
 
                     self.kernel.set_arg_buffer(0, &cl_display_target);
-                    self.kernel.set_arg_buffer(1, &cl_base_color);
-                    self.kernel.set_arg_buffer(2, &cl_normal);
-                    self.kernel.set_arg_buffer(3, &cl_mro);
-                    self.kernel.set_arg_buffer(4, &cl_emission);
-                    self.kernel.set_arg_buffer(5, &cl_camera);
-                    self.kernel.set_arg_buffer(6, &cl_neural_network);
-                    self.kernel.set_arg_buffer(7, &cl_in_weights);
-                    self.kernel.set_arg_buffer(8, &cl_out_weights);
-                    self.kernel.set_arg_empty(9, neural_network.required_cache_size());
-                    self.kernel.set_arg_int(10, (neural_network.required_cache_size() / 4) as i32);
-                    multi_hash_grid.set_kernel_arg(&self.kernel, 11);
-                    self.kernel.set_arg_buffer(13, &cl_loss);
+                    self.kernel.set_arg_buffer(1, &cl_position);
+                    self.kernel.set_arg_buffer(2, &cl_base_color);
+                    self.kernel.set_arg_buffer(3, &cl_normal);
+                    self.kernel.set_arg_buffer(4, &cl_mro);
+                    self.kernel.set_arg_buffer(5, &cl_emission);
+                    self.kernel.set_arg_buffer(6, &cl_camera);
+                    self.kernel.set_arg_buffer(7, &cl_neural_network);
+                    self.kernel.set_arg_buffer(8, &cl_in_weights);
+                    self.kernel.set_arg_buffer(9, &cl_out_weights);
+                    self.kernel.set_arg_empty(10, neural_network.required_cache_size());
+                    self.kernel.set_arg_int(11, (neural_network.required_cache_size() / 4) as i32);
+                    multi_hash_grid.set_kernel_arg(&self.kernel, 12);
+                    self.kernel.set_arg_buffer(15, &cl_aabb);
+                    self.kernel.set_arg_buffer(16, &cl_loss);
 
                     let local_work_dims = vec![1, 1];
                     self.command_queue.execute(&self.kernel, &vec![display_target.width() as usize, display_target.height() as usize], Some(&local_work_dims));
@@ -370,6 +428,7 @@ impl Baker {
                     self.command_queue.read_buffer(&cl_loss, &mut loss as *mut f32);
                     println!("loss: {}", loss);
                     multi_hash_grid.read(&self.command_queue);
+                    multi_hash_grid.fix_nan();
 
                     // Release gl resources
                     self.command_queue.release_gl_texture(&cl_display_target);
@@ -377,6 +436,7 @@ impl Baker {
                     self.command_queue.release_gl_texture(&cl_mro);
                     self.command_queue.release_gl_texture(&cl_normal);
                     self.command_queue.release_gl_texture(&cl_base_color);
+                    self.command_queue.release_gl_texture(&cl_position);
                 }
 
                 // Display rt result

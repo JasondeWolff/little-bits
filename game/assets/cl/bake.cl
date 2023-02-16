@@ -1,12 +1,14 @@
 #pragma OPENCL EXTENSION cl_intel_printf : enable
 
 #define DEBUG_MODE
+//#define PROGRESS_COUNTER
 
 #include "common.cl"
 #include "multi_hash_grid.cl"
 #include "nn.cl"
 
 __kernel void render(write_only image2d_t out,
+    read_only image2d_t position_target,
     read_only image2d_t base_color_target,
     read_only image2d_t normal_target,
     read_only image2d_t mro_target,
@@ -17,7 +19,9 @@ __kernel void render(write_only image2d_t out,
     __global float* out_weights,
     __local float* cache, int cacheSize,
     __global MutliHashGridMeta* mhgMeta,
-    __global float* mhgElems,
+    __global float* in_mhgElems,
+    __global float* out_mhgElems,
+    __global AABB* aabb,
     __global float* loss)
 {
     // Zero cache
@@ -26,6 +30,8 @@ __kernel void render(write_only image2d_t out,
         cache[i] = 0.0;
     }
 
+    printf("maxres: %f\n", mhgMeta->resolutionLayers);
+
     // Get kernel info
     const size_t x = get_global_id(0);
 	const size_t y = get_global_id(1);
@@ -33,7 +39,14 @@ __kernel void render(write_only image2d_t out,
 	const size_t height = get_global_size(1);
     const float unit = 1.0f / (width * height);
 
-    float learningRate = 10.0f;
+#ifdef PROGRESS_COUNTER
+    if (x == 0)
+    {
+        printf("out of %i\n", width);
+    }
+#endif
+
+    float learningRate = 1.0f;
 
     // Allows a single printf per kernel
     bool oc = true;
@@ -50,44 +63,88 @@ __kernel void render(write_only image2d_t out,
         uv.y = 1.0f - uv.y;
 
         ray.origin = E;
-        ray.direction = llc + uv.x * horizontal + uv.y * vertical - E;
+        ray.direction = normalize(llc + uv.x * horizontal + uv.y * vertical - E);
+        ray.invDirection = (float3)(1.0 / ray.direction.x, 1.0 / ray.direction.y, 1.0 / ray.direction.z);
     }
 
-    // Set neural network inputs
+    float tAABB = RayAABBIntersection(&ray, aabb);
+    if (tAABB < 0.0f)
     {
-        // cache[InputNeuron(nn, 0, &oc)] = ray.origin.x;
-        // cache[InputNeuron(nn, 1, &oc)] = ray.origin.y;
-        // cache[InputNeuron(nn, 2, &oc)] = ray.origin.z;
-        // cache[InputNeuron(nn, 3, &oc)] = ray.direction.x;
-        // cache[InputNeuron(nn, 4, &oc)] = ray.direction.y;
-
-        float2 uv = (float2)(x, y) / (float2)(width, height);
-        cache[InputNeuron(nn, 0, &oc)] = uv.x;
-        cache[InputNeuron(nn, 1, &oc)] = uv.y;
+        write_imagef(out, (int2)(x, y), (float4)(0.0, 0.0, 0.0, 1.0));
+        return;
     }
+    // ray.origin += ray.direction * tAABB;
 
-    Forward(&oc, nn, in_weights, cache);
-    float3 color = (float3)(cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 1, &oc)], cache[OutputNeuron(nn, 2, &oc)]);
-
-    float4 target = read_imagef(base_color_target, (int2)(x, y));
-
-    // Calculate errors
+    // Travel distance along ray (use ray marching)
+    float t = 0.01f;
     {
-        cache[OutputNeuron(nn, 0, &oc)] = 1.0 - cache[OutputNeuron(nn, 0, &oc)];
-        cache[OutputNeuron(nn, 1, &oc)] = 0.0 - cache[OutputNeuron(nn, 1, &oc)];
-        cache[OutputNeuron(nn, 2, &oc)] = 0.0 - cache[OutputNeuron(nn, 2, &oc)];
-        //cache[OutputNeuron(nn, 3)] = cache[OutputNeuron(nn, 3)] - target.a;
+        t = read_imagef(position_target, (int2)(x, y)).w;
+        if (t < 0.01f)
+        {
+            write_imagef(out, (int2)(x, y), (float4)(1.0, 0.0, 0.0, 1.0));
+            return;
+        }
+
+        // COORDINATES DONT MATCH UP WITH RASTERIZER!!!
+        // float3 pc = read_imagef(position_target, (int2)(x, y)).xyz;
+        // if (length(pc) > 0.01f)
+        // {
+        //     float3 p = ray.origin + ray.direction * t;
+        //     printf("True Hit: %f %f %f\nRay Hit: %f %f %f\n\n", pc.x, pc.y, pc.z, p.x, p.y, p.z);
+        // }
     }
 
-    // Store loss
+    if (PointAABBIntersection(ray.origin + ray.direction * t, aabb))
     {
-        float localLoss = cache[OutputNeuron(nn, 0, &oc)] * cache[OutputNeuron(nn, 0, &oc)] + cache[OutputNeuron(nn, 1, &oc)] * cache[OutputNeuron(nn, 1, &oc)] + cache[OutputNeuron(nn, 2, &oc)] * cache[OutputNeuron(nn, 2, &oc)];
-        AtomicAddFloat(&loss[0], localLoss);
+        // Set neural network inputs
+        {
+            for (int l = 0; l < mhgMeta->resolutionLayers; l++)
+            {
+                float3 offset = -aabb->low;
+                float sampleValue = GetGridSampleValue(mhgMeta, in_mhgElems, l, 0, offset + (ray.origin + ray.direction * t), &oc);
+                cache[InputNeuron(nn, l, &oc)] = sampleValue;
+            }
+
+            // Give angle to learn mipmaps
+            cache[InputNeuron(nn, mhgMeta->resolutionLayers, &oc)] = fabs(ray.direction.y) + fabs(ray.direction.x);
+        }
+
+        Forward(&oc, nn, in_weights, cache);
+        float3 color = (float3)(cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 0, &oc)]);
+
+        float4 target = read_imagef(base_color_target, (int2)(x, y));
+        float grayscaleTarget = (target.x + target.y + target.z) * 0.333f;
+
+        // Calculate errors
+        {
+            float error = grayscaleTarget - cache[OutputNeuron(nn, 0, &oc)];
+            float sign = error > 0.0f ? 1.0f : -1.0f;
+            cache[OutputNeuron(nn, 0, &oc)] = error * error * sign;
+        }
+
+        // Store loss
+        {
+            float localLoss = cache[OutputNeuron(nn, 0, &oc)] * cache[OutputNeuron(nn, 0, &oc)];// + cache[OutputNeuron(nn, 1, &oc)] * cache[OutputNeuron(nn, 1, &oc)] + cache[OutputNeuron(nn, 2, &oc)] * cache[OutputNeuron(nn, 2, &oc)];
+            AtomicAddFloat(&loss[0], localLoss);
+        }
+
+        Backpropagate(&oc, nn, in_weights, out_weights, cache, learningRate * unit);
+
+        // Backpropagate mhg
+        for (int l = 0; l < mhgMeta->resolutionLayers; l++)
+        {
+            float delta = learningRate * unit * cache[InputNeuronDelta(nn, l, &oc)];
+            delta = clamp(delta, -5000.0f, 5000.0f);
+
+            float3 pos = -aabb->low + (ray.origin + ray.direction * t);
+            AtomicAddGridSampleValue(mhgMeta, out_mhgElems, l, 0, pos, delta, &oc);
+        }
+
+        write_imagef(out, (int2)(x, y), (float4)(color, 1.0));
+        //write_imagef(out, (int2)(x, y), (float4)(grayscaleTarget, grayscaleTarget, grayscaleTarget, 1.0));
     }
-
-    Backpropagate(&oc, nn, in_weights, out_weights, cache, learningRate * unit);
-
-    //color = read_imagef(base_color_target, (int2)(x, y)).xyz;
-
-    write_imagef(out, (int2)(x, y), (float4)(color, 1.0));
+    else
+    {
+        write_imagef(out, (int2)(x, y), (float4)(1.0, 0.0, 0.0, 1.0));
+    }
 }
