@@ -32,7 +32,7 @@ int GridIndex(__global MutliHashGridMeta* mhg, int layer, int feature, int3 pos,
 
     int index;
     // Encode if maxEntries is exceeded
-    if (resolution * resolution * resolution >= mhg->maxEntries)
+    if ((float)(resolution) >= cbrt((float)(mhg->maxEntries)))
     {
         index = layerOffset + featureOffset + SpatialHash(pos, mhg->maxEntries);
     }
@@ -70,11 +70,12 @@ int GridIndex(__global MutliHashGridMeta* mhg, int layer, int feature, int3 pos,
             printf("[OpenCL][ERROR] pos is out of range. (GridIndex)\n");
             if (pos.x < 0 || pos.x >= mhg->width)
             {
-                printf("pos.y = %i range = [0, %i>\n", pos.x,  mhg->width);
+                printf("pos.x = %i range = [0, %i>\n", pos.x,  mhg->width);
             }
             if (pos.y < 0 || pos.y >= mhg->height)
             {
                 printf("pos.y = %i range = [0, %i>\n", pos.y, mhg->height);
+                printf("r = %i maxEntries = %i\nindex = %i range = [0, %i>\nlayer = %i range = [0, %i>\nfeature = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.z = %i range = [0, %i>\n\n", resolution, mhg->maxEntries, index, mhg->resolutionLayers * mhg->maxEntries * mhg->featuresPerEntry, layer, mhg->resolutionLayers, feature, mhg->featuresPerEntry, pos.x, mhg->width, pos.y, mhg->height, pos.z, mhg->depth);
             }
             if (pos.z < 0 || pos.z >= mhg->depth)
             {
@@ -90,7 +91,7 @@ int GridIndex(__global MutliHashGridMeta* mhg, int layer, int feature, int3 pos,
         if (*oc)
         {
             printf("[OpenCL][ERROR] index is out of range. (GridIndex)\n");
-            printf("index = %i range = [0, %i>\nlayer = %i range = [0, %i>\nfeature = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.z = %i range = [0, %i>\n\n", index, mhg->resolutionLayers * mhg->maxEntries * mhg->featuresPerEntry, layer, mhg->resolutionLayers, feature, mhg->featuresPerEntry, pos.x, mhg->width, pos.y, mhg->height, pos.z, mhg->depth);
+            printf("r = %i maxEntries = %i\nindex = %i range = [0, %i>\nlayer = %i range = [0, %i>\nfeature = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.z = %i range = [0, %i>\n\n", resolution, mhg->maxEntries, index, mhg->resolutionLayers * mhg->maxEntries * mhg->featuresPerEntry, layer, mhg->resolutionLayers, feature, mhg->featuresPerEntry, pos.x, mhg->width, pos.y, mhg->height, pos.z, mhg->depth);
 
             *oc = false;
         }
@@ -104,10 +105,10 @@ float GetGridValue(__global MutliHashGridMeta* mhg, __global float* mghElems, in
 {
     pos *= (float3)(1000.0f, 1000.0f, 1000.0f);
 
-    float invResolution = 1.0f / Resolution(mhg, layer);
-    float xresInv = 1.0f / ((float)(mhg->width) * invResolution);
-    float yresInv = 1.0f / ((float)(mhg->height) * invResolution);
-    float zresInv = 1.0f / ((float)(mhg->depth) * invResolution);
+    float resolution = Resolution(mhg, layer);
+    float xresInv = resolution / (float)(mhg->width);
+    float yresInv = resolution / (float)(mhg->height);
+    float zresInv = resolution / (float)(mhg->depth);
 
     int3 unitPos = (int3)(round(pos.x * xresInv), round(pos.y * yresInv), round(pos.z * zresInv));
     return mghElems[GridIndex(mhg, layer, feature, unitPos, oc)];
@@ -117,10 +118,10 @@ void SetGridValue(__global MutliHashGridMeta* mhg, __global float* mghElems, int
 {
     pos *= (float3)(1000.0f, 1000.0f, 1000.0f);
 
-    float invResolution = 1.0f / Resolution(mhg, layer);
-    float xresInv = 1.0f / ((float)(mhg->width) * invResolution);
-    float yresInv = 1.0f / ((float)(mhg->height) * invResolution);
-    float zresInv = 1.0f / ((float)(mhg->depth) * invResolution);
+    float resolution = Resolution(mhg, layer);
+    float xresInv = resolution / (float)(mhg->width);
+    float yresInv = resolution / (float)(mhg->height);
+    float zresInv = resolution / (float)(mhg->depth);
 
     int3 unitPos = (int3)(round(pos.x * xresInv), round(pos.y * yresInv), round(pos.z * zresInv));
     mghElems[GridIndex(mhg, layer, feature, unitPos, oc)] = value;
@@ -130,10 +131,39 @@ float GetGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghEle
 {
     pos *= (float3)(1000.0f, 1000.0f, 1000.0f);
 
-    float invResolution = 1.0f / Resolution(mhg, layer);
-    float xresInv = 1.0f / ((float)(mhg->width) * invResolution);
-    float yresInv = 1.0f / ((float)(mhg->height) * invResolution);
-    float zresInv = 1.0f / ((float)(mhg->depth) * invResolution);
+#ifdef DEBUG_MODE
+    if ((int)(pos.x) < 0 || (int)(pos.x) >= mhg->width || (int)(pos.y) < 0 || (int)(pos.y) >= mhg->height || (int)(pos.z) < 0 || (int)(pos.z) >= mhg->depth)
+    {
+        if (*oc)
+        {
+            printf("[OpenCL][ERROR] pos is out of range. (GetGridSampleValue)\n");
+            if ((int)(pos.x) < 0 || (int)(pos.x) >= mhg->width)
+            {
+                printf("(GetGridSampleValue) pos.x = %i range = [0, %i>\n", (int)(pos.x),  mhg->width);
+            }
+            if ((int)(pos.y) < 0 || (int)(pos.y) >= mhg->height)
+            {
+                printf("(GetGridSampleValue) pos.y = %i range = [0, %i>\n", (int)(pos.y), mhg->height);
+            }
+            if ((int)(pos.z) < 0 || (int)(pos.z) >= mhg->depth)
+            {
+                printf("(GetGridSampleValue) pos.z = %i range = [0, %i>\n", (int)(pos.z), mhg->depth);
+            }
+
+            *oc = false;
+        }
+    }
+#endif
+
+    // float invResolution = 1.0f / Resolution(mhg, layer);
+    // float xresInv = 1.0f / ((float)(mhg->width) * invResolution);
+    // float yresInv = 1.0f / ((float)(mhg->height) * invResolution);
+    // float zresInv = 1.0f / ((float)(mhg->depth) * invResolution);
+
+    float resolution = Resolution(mhg, layer);
+    float xresInv = resolution / (float)(mhg->width);
+    float yresInv = resolution / (float)(mhg->height);
+    float zresInv = resolution / (float)(mhg->depth);
 
     int3 lbf = (int3)(floor(pos.x * xresInv), floor(pos.y * yresInv), floor(pos.z * zresInv));
     int3 lbb = (int3)(floor(pos.x * xresInv), floor(pos.y * yresInv), ceil(pos.z * zresInv));
@@ -174,10 +204,34 @@ void SetGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghElem
 {
     pos *= (float3)(1000.0f, 1000.0f, 1000.0f);
 
-    float invResolution = 1.0f / Resolution(mhg, layer);
-    float xresInv = 1.0f / ((float)(mhg->width) * invResolution);
-    float yresInv = 1.0f / ((float)(mhg->height) * invResolution);
-    float zresInv = 1.0f / ((float)(mhg->depth) * invResolution);
+#ifdef DEBUG_MODE
+    if ((int)(pos.x) < 0 || (int)(pos.x) >= mhg->width || (int)(pos.y) < 0 || (int)(pos.y) >= mhg->height || (int)(pos.z) < 0 || (int)(pos.z) >= mhg->depth)
+    {
+        if (*oc)
+        {
+            printf("[OpenCL][ERROR] pos is out of range. (SetGridSampleValue)\n");
+            if ((int)(pos.x) < 0 || (int)(pos.x) >= mhg->width)
+            {
+                printf("pos.x = %i range = [0, %i>\n", (int)(pos.x),  mhg->width);
+            }
+            if ((int)(pos.y) < 0 || (int)(pos.y) >= mhg->height)
+            {
+                printf("pos.y = %i range = [0, %i>\n", (int)(pos.y), mhg->height);
+            }
+            if ((int)(pos.z) < 0 || (int)(pos.z) >= mhg->depth)
+            {
+                printf("pos.z = %i range = [0, %i>\n", (int)(pos.z), mhg->depth);
+            }
+
+            *oc = false;
+        }
+    }
+#endif
+
+    float resolution = Resolution(mhg, layer);
+    float xresInv = resolution / (float)(mhg->width);
+    float yresInv = resolution / (float)(mhg->height);
+    float zresInv = resolution / (float)(mhg->depth);
 
     int3 lbf = (int3)(floor(pos.x * xresInv), floor(pos.y * yresInv), floor(pos.z * zresInv));
     int3 lbb = (int3)(floor(pos.x * xresInv), floor(pos.y * yresInv), ceil(pos.z * zresInv));
@@ -213,10 +267,34 @@ void AtomicAddGridSampleValue(__global MutliHashGridMeta* mhg, __global float* m
 {
     pos *= (float3)(1000.0f, 1000.0f, 1000.0f);
 
-    float invResolution = 1.0f / Resolution(mhg, layer);
-    float xresInv = 1.0f / ((float)(mhg->width) * invResolution);
-    float yresInv = 1.0f / ((float)(mhg->height) * invResolution);
-    float zresInv = 1.0f / ((float)(mhg->depth) * invResolution);
+#ifdef DEBUG_MODE
+    if ((int)(pos.x) < 0 || (int)(pos.x) >= mhg->width || (int)(pos.y) < 0 || (int)(pos.y) >= mhg->height || (int)(pos.z) < 0 || (int)(pos.z) >= mhg->depth)
+    {
+        if (*oc)
+        {
+            printf("[OpenCL][ERROR] pos is out of range. (AtomicAddGridSampleValue)\n");
+            if ((int)(pos.x) < 0 || (int)(pos.x) >= mhg->width)
+            {
+                printf("(AtomicAddGridSampleValue) pos.x = %i range = [0, %i>\n", (int)(pos.x),  mhg->width);
+            }
+            if ((int)(pos.y) < 0 || (int)(pos.y) >= mhg->height)
+            {
+                printf("(AtomicAddGridSampleValue) pos.y = %i range = [0, %i>\n", (int)(pos.y), mhg->height);
+            }
+            if ((int)(pos.z) < 0 || (int)(pos.z) >= mhg->depth)
+            {
+                printf("(AtomicAddGridSampleValue) pos.z = %i range = [0, %i>\n", (int)(pos.z), mhg->depth);
+            }
+
+            *oc = false;
+        }
+    }
+#endif
+
+    float resolution = Resolution(mhg, layer);
+    float xresInv = resolution / (float)(mhg->width);
+    float yresInv = resolution / (float)(mhg->height);
+    float zresInv = resolution / (float)(mhg->depth);
 
     int3 lbf = (int3)(floor(pos.x * xresInv), floor(pos.y * yresInv), floor(pos.z * zresInv));
     int3 lbb = (int3)(floor(pos.x * xresInv), floor(pos.y * yresInv), ceil(pos.z * zresInv));

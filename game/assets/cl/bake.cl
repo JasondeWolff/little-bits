@@ -30,7 +30,7 @@ __kernel void render(write_only image2d_t out,
         cache[i] = 0.0;
     }
 
-    printf("maxres: %f\n", mhgMeta->resolutionLayers);
+    printf("maxres: %i\n", mhgMeta->maxResolution);
 
     // Get kernel info
     const size_t x = get_global_id(0);

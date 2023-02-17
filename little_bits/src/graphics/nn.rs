@@ -72,7 +72,7 @@ impl MultiHashGrid {
                 height: height as i32,
                 depth: depth as i32
             },
-            meta_buffer: CLBuffer::new(cl_context, CLBufferMode::ReadWrite, std::mem::size_of::<MultiHashGridMeta>()),
+            meta_buffer: CLBuffer::new(cl_context, CLBufferMode::Read, std::mem::size_of::<MultiHashGridMeta>()),
             elems: elems,
             elem_buffer_readonly: CLBuffer::new(cl_context, CLBufferMode::Read, resolution_layers * max_entries * features_per_entry * 4),
             elem_buffer_writeonly: CLBuffer::new(cl_context, CLBufferMode::Write, resolution_layers * max_entries * features_per_entry * 4)
@@ -339,7 +339,7 @@ impl Baker {
 
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
-        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(22), 1, 16, 512, size);
+        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(22), 1, 16, 512*16, size);
 
         let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32 + 1, 64, 1, 3);
         println!("Using {}B per kernel", neural_network.required_cache_size());
