@@ -115,7 +115,8 @@ __kernel void render(write_only image2d_t out,
         // Calculate errors
         {
             float error = grayscaleTarget - cache[OutputNeuron(nn, 0, &oc)];
-            cache[OutputNeuron(nn, 0, &oc)] = -error;// SHOULD BE SQUARE!!!
+            float sign = error > 0.0 ? 1.0 : -1.0;
+            cache[OutputNeuron(nn, 0, &oc)] = error * error * -sign;// SHOULD BE SQUARE!!!
             AtomicAddFloat(&errors[0], -error * unit);
         }
 
@@ -130,7 +131,7 @@ __kernel void render(write_only image2d_t out,
         // Backpropagate mhg
         for (int l = 0; l < mhgMeta->resolutionLayers; l++)
         {
-            float delta = learningRate * cache[InputNeuronDelta(nn, l, &oc)] * 1000.0;
+            float delta = learningRate * cache[InputNeuronDelta(nn, l, &oc)] * 10000.0;
             //delta = clamp(delta, -5000.0f, 5000.0f);
 
             float3 pos = -aabb->low + (ray.origin + ray.direction * t);
@@ -252,7 +253,7 @@ __kernel void train(read_only image2d_t position_target,
         // Backpropagate mhg
         for (int l = 0; l < mhgMeta->resolutionLayers; l++)
         {
-            float delta = learningRate * cache[InputNeuronDelta(nn, l, &oc)];
+            float delta = learningRate * cache[InputNeuronDelta(nn, l, &oc)] * 10000.0;
             //delta = clamp(delta, -5000.0f, 5000.0f);
 
             float3 pos = -aabb->low + (ray.origin + ray.direction * t);
