@@ -131,8 +131,8 @@ __kernel void render(write_only image2d_t out,
         // Backpropagate mhg
         for (int l = 0; l < mhgMeta->resolutionLayers; l++)
         {
-            float delta = learningRate * cache[InputNeuronDelta(nn, l, &oc)] * 10000.0;
-            //delta = clamp(delta, -5000.0f, 5000.0f);
+            float delta = learningRate * cache[InputNeuronDelta(nn, l, &oc)] * width * height;
+            //delta = clamp(delta, -0.05f, 0.05f);
 
             float3 pos = -aabb->low + (ray.origin + ray.direction * t);
             AtomicAddGridSampleValue(mhgMeta, out_mhgElems, l, 0, pos, delta, &oc);
