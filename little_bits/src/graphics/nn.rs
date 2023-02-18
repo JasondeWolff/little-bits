@@ -342,7 +342,7 @@ impl Baker {
             BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius * 1.5)
         };
 
-        let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
+        //let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
 
         let position_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
         let cl_position = CLGLTexture2D::new(&self.context, position_rt.tex(), CLBufferMode::Read);
@@ -371,7 +371,7 @@ impl Baker {
         // Hey future me, trilinear filtering is probably flipped!
         let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(22), 1, 128, 512*16, size);
 
-        let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32 + 1, 32, 1, 2);
+        let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32 + 1, 32, 3, 2);
         println!("Using {}B per kernel", neural_network.required_cache_size());
         let mut cl_nn_rep = CLNeuralNetwork::new(&neural_network);
         let cl_neural_network = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLNeuralNetwork>());

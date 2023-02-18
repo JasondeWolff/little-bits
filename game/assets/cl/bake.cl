@@ -107,22 +107,30 @@ __kernel void render(write_only image2d_t out,
         }
 
         Forward(&oc, nn, in_weights, cache);
-        float3 color = (float3)(cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 0, &oc)]);
+        float3 color = (float3)(cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 1, &oc)], cache[OutputNeuron(nn, 2, &oc)]);
 
         float4 target = read_imagef(base_color_target, (int2)(x, y));
-        float grayscaleTarget = (target.x + target.y + target.z) * 0.333f;
 
         // Calculate errors
         {
-            float error = grayscaleTarget - cache[OutputNeuron(nn, 0, &oc)];
+            float error = target.x - cache[OutputNeuron(nn, 0, &oc)];
             float sign = error > 0.0 ? 1.0 : -1.0;
-            cache[OutputNeuron(nn, 0, &oc)] = error * error * -sign;// SHOULD BE SQUARE!!!
+            cache[OutputNeuron(nn, 0, &oc)] = error * error * -sign;
+
+            error = target.y - cache[OutputNeuron(nn, 1, &oc)];
+            sign = error > 0.0 ? 1.0 : -1.0;
+            cache[OutputNeuron(nn, 1, &oc)] = error * error * -sign;
+
+            error = target.z - cache[OutputNeuron(nn, 2, &oc)];
+            sign = error > 0.0 ? 1.0 : -1.0;
+            cache[OutputNeuron(nn, 2, &oc)] = error * error * -sign;
+
             AtomicAddFloat(&errors[0], -error * unit);
         }
 
         // Store loss
         {
-            float localLoss = cache[OutputNeuron(nn, 0, &oc)] * cache[OutputNeuron(nn, 0, &oc)];// + cache[OutputNeuron(nn, 1, &oc)] * cache[OutputNeuron(nn, 1, &oc)] + cache[OutputNeuron(nn, 2, &oc)] * cache[OutputNeuron(nn, 2, &oc)];
+            float localLoss = cache[OutputNeuron(nn, 0, &oc)] * cache[OutputNeuron(nn, 0, &oc)] + cache[OutputNeuron(nn, 1, &oc)] * cache[OutputNeuron(nn, 1, &oc)] + cache[OutputNeuron(nn, 2, &oc)] * cache[OutputNeuron(nn, 2, &oc)];
             AtomicAddFloat(&loss[0], localLoss);
         }
 
@@ -139,7 +147,7 @@ __kernel void render(write_only image2d_t out,
         }
 
         write_imagef(out, (int2)(x, y), (float4)(color, 1.0));
-        //write_imagef(out, (int2)(x, y), (float4)(grayscaleTarget, grayscaleTarget, grayscaleTarget, 1.0));
+        //write_imagef(out, (int2)(x, y), (float4)(target.xyz, 1.0));
     }
     else
     {
