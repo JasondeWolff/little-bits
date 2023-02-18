@@ -222,6 +222,12 @@ impl CLKernel {
             cl_check(cl3::kernel::set_kernel_arg(self.kernel, idx, std::mem::size_of::<i32>(), &value as *const i32 as *const c_void));
         }
     }
+
+    pub fn set_arg_float(&self, idx: u32, value: f32) {
+        unsafe {
+            cl_check(cl3::kernel::set_kernel_arg(self.kernel, idx, std::mem::size_of::<f32>(), &value as *const f32 as *const c_void));
+        }
+    }
 }
 
 impl Drop for CLKernel {

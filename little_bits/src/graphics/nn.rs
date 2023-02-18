@@ -6,7 +6,7 @@ use cl_wrapper::*;
 use crate::graphics::opengl::*;
 use rand::Rng;
 
-use crate::app;
+use crate::{app, Timer};
 use crate::graphics::camera::*;
 use std::f32::consts::PI;
 
@@ -51,14 +51,14 @@ impl AABB {
 
 impl MultiHashGrid {
     pub fn new(cl_context: &CLContext, resolution_layers: usize, max_entries: usize, features_per_entry: usize, min_resolution: usize, max_resolution: usize, size: Float3) -> Self {
-        let width = (size.x * 1000.0) as usize;
-        let height = (size.y * 1000.0) as usize;
-        let depth = (size.z * 1000.0) as usize;
+        let width = (size.x * 100000.0) as usize;
+        let height = (size.y * 100000.0) as usize;
+        let depth = (size.z * 100000.0) as usize;
 
         let mut elems = Vec::with_capacity(resolution_layers * max_entries * features_per_entry);
         let mut rng = rand::thread_rng();
         for _ in 0..elems.capacity() {
-            elems.push(rng.gen_range(0.0, 1.0));
+            elems.push(rng.gen_range(-0.0001, 0.0001));
         }
 
         MultiHashGrid {
@@ -93,7 +93,7 @@ impl MultiHashGrid {
         let mut rng = rand::thread_rng();
         for i in 0..self.elems.len() {
             if f32::is_nan(self.elems[i]) {
-                self.elems[i] = rng.gen_range(0.0, 1.0);
+                self.elems[i] = rng.gen_range(-0.0001, 0.0001);
             }
         }
     }
@@ -119,6 +119,12 @@ struct NeuralNetwork {
     weights: Vec<f32>
 }
 
+fn weight_init(rng: &mut rand::ThreadRng, nj: i32, nj1: i32) -> f32 {
+    let sqrt6 = 2.44948974278f32; // (6.0).sqrt()
+    let range = sqrt6 / (nj as f32 + nj1 as f32).sqrt();
+    rng.gen_range(-range, range)
+}
+
 impl NeuralNetwork {
     fn new(input_count: i32, hidden_count: i32, output_count: i32, hidden_layer_count: i32) -> Self {
         let weight_count = input_count * hidden_count + hidden_count * hidden_count * hidden_layer_count + hidden_count * output_count;
@@ -126,8 +132,18 @@ impl NeuralNetwork {
         let mut weights = Vec::with_capacity((weight_count + bias_count) as usize);
 
         let mut rng = rand::thread_rng();
-        for _ in 0..weights.capacity() {
-            weights.push(rng.gen_range(0.0, 1.0));
+        for _ in 0..(input_count * hidden_count) {
+            weights.push(weight_init(&mut rng, input_count, hidden_count));
+        }
+        for _ in (input_count * hidden_count)..(input_count * hidden_count + hidden_count * hidden_count * hidden_layer_count) {
+            weights.push(weight_init(&mut rng, hidden_count, hidden_count));
+        }
+        for _ in (input_count * hidden_count + hidden_count * hidden_count * hidden_layer_count)..(input_count * hidden_count + hidden_count * hidden_count * hidden_layer_count + hidden_count * output_count) {
+            weights.push(weight_init(&mut rng, hidden_count, output_count));
+        }
+
+        for _ in 0..bias_count {
+            weights.push(rng.gen_range(-0.01, 0.01));
         }
         
         NeuralNetwork {
@@ -145,9 +161,19 @@ impl NeuralNetwork {
 
     fn fix_nan(&mut self) {
         let mut rng = rand::thread_rng();
-        for i in 0..self.weights.len() {
+        for i in 0..(self.input_count * self.hidden_count) as usize {
             if f32::is_nan(self.weights[i]) {
-                self.weights[i] = rng.gen_range(0.0, 1.0);
+                self.weights[i] = weight_init(&mut rng, self.input_count, self.hidden_count);
+            }
+        }
+        for i in (self.input_count * self.hidden_count) as usize..(self.input_count * self.hidden_count + self.hidden_count * self.hidden_count * self.hidden_layer_count) as usize {
+            if f32::is_nan(self.weights[i]) {
+                self.weights[i] = weight_init(&mut rng, self.hidden_count, self.hidden_count);
+            }
+        }
+        for i in (self.input_count * self.hidden_count + self.hidden_count * self.hidden_count * self.hidden_layer_count) as usize..(self.input_count * self.hidden_count + self.hidden_count * self.hidden_count * self.hidden_layer_count + self.hidden_count * self.output_count) as usize {
+            if f32::is_nan(self.weights[i]) {
+                self.weights[i] = weight_init(&mut rng, self.hidden_count, self.output_count);
             }
         }
     }
@@ -176,6 +202,7 @@ pub struct Baker {
     command_queue: CLCommandQueue,
     program: CLProgram,
     kernel: CLKernel,
+    train_kernel: CLKernel,
     shader_program: GLShaderProgram,
 
     display_shader_program: GLShaderProgram,
@@ -212,6 +239,7 @@ impl Baker {
         let program_src = app().resources().get_text(String::from("assets/cl/bake.cl"));
         let program = CLProgram::new(&context, &program_src.as_ref(), Some(&String::from("assets/cl/")));
         let kernel = CLKernel::new(&program, &String::from("render"));
+        let train_kernel = CLKernel::new(&program, &String::from("train"));
 
         let shader_program;
         {
@@ -237,6 +265,7 @@ impl Baker {
             command_queue: command_queue,
             program: program,
             kernel: kernel,
+            train_kernel: train_kernel,
             shader_program: shader_program,
             display_shader_program: display_shader_program,
             display_vao: display_vao
@@ -339,9 +368,9 @@ impl Baker {
 
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
-        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(22), 1, 16, 512*16, size);
+        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 2, 2usize.pow(15), 1, 16, 32, size);
 
-        let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32 + 1, 64, 1, 3);
+        let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32 + 1, 1, 1, 1);
         println!("Using {}B per kernel", neural_network.required_cache_size());
         let mut cl_nn_rep = CLNeuralNetwork::new(&neural_network);
         let cl_neural_network = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLNeuralNetwork>());
@@ -350,8 +379,16 @@ impl Baker {
 
         let cl_aabb = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<AABB>());
         let cl_loss = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>());
+        let cl_errors = CLBuffer::new(&self.context, CLBufferMode::ReadWrite, std::mem::size_of::<f32>() * (multi_hash_grid.required_nn_inputs() + 1));
+
+        let mut timer = Timer::new();
 
         for e in 0..params.epochs {
+            if (e % 10 == 0) 
+            {
+                let br = 0;
+            }
+
             for camera_point in &camera_points {
                 glfw.poll_events();
 
@@ -417,9 +454,25 @@ impl Baker {
                     multi_hash_grid.set_kernel_arg(&self.kernel, 12);
                     self.kernel.set_arg_buffer(15, &cl_aabb);
                     self.kernel.set_arg_buffer(16, &cl_loss);
+                    self.kernel.set_arg_buffer(17, &cl_errors);
 
                     let local_work_dims = vec![1, 1];
                     self.command_queue.execute(&self.kernel, &vec![display_target.width() as usize, display_target.height() as usize], Some(&local_work_dims));
+                    self.command_queue.finish();
+
+                    self.train_kernel.set_arg_buffer(0, &cl_position);
+                    self.train_kernel.set_arg_buffer(1, &cl_camera);
+                    self.train_kernel.set_arg_buffer(2, &cl_neural_network);
+                    self.train_kernel.set_arg_buffer(3, &cl_in_weights);
+                    self.train_kernel.set_arg_buffer(4, &cl_out_weights);
+                    self.train_kernel.set_arg_empty(5, neural_network.required_cache_size());
+                    self.train_kernel.set_arg_int(6, (neural_network.required_cache_size() / 4) as i32);
+                    multi_hash_grid.set_kernel_arg(&self.train_kernel, 7);
+                    self.train_kernel.set_arg_buffer(10, &cl_aabb);
+                    self.train_kernel.set_arg_buffer(11, &cl_errors);
+                    self.train_kernel.set_arg_float(12, timer.elapsed() as f32);
+
+                    self.command_queue.execute(&self.train_kernel, &vec![display_target.width() as usize, display_target.height() as usize], Some(&local_work_dims));
                     self.command_queue.finish();
                     
                     self.command_queue.read_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr());
