@@ -25,9 +25,9 @@ struct MultiHashGridMeta {
     features_per_entry: i32,
     min_resolution: i32,
     max_resolution: i32,
-    width: i32,
-    height: i32,
-    depth: i32,
+    width: f32,
+    height: f32,
+    depth: f32,
 }
 
 #[repr(C)]
@@ -51,10 +51,6 @@ impl AABB {
 
 impl MultiHashGrid {
     pub fn new(cl_context: &CLContext, resolution_layers: usize, max_entries: usize, features_per_entry: usize, min_resolution: usize, max_resolution: usize, size: Float3) -> Self {
-        let width = (size.x * 100000.0) as usize;
-        let height = (size.y * 100000.0) as usize;
-        let depth = (size.z * 100000.0) as usize;
-
         let mut elems = Vec::with_capacity(resolution_layers * max_entries * features_per_entry);
         let mut rng = rand::thread_rng();
         for _ in 0..elems.capacity() {
@@ -68,9 +64,9 @@ impl MultiHashGrid {
                 features_per_entry: features_per_entry as i32,
                 min_resolution: min_resolution as i32,
                 max_resolution: max_resolution as i32,
-                width: width as i32,
-                height: height as i32,
-                depth: depth as i32
+                width: size.x,
+                height: size.y,
+                depth: size.z
             },
             meta_buffer: CLBuffer::new(cl_context, CLBufferMode::Read, std::mem::size_of::<MultiHashGridMeta>()),
             elems: elems,
@@ -342,7 +338,7 @@ impl Baker {
             BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius * 1.5)
         };
 
-        //let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
+        let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
 
         let position_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
         let cl_position = CLGLTexture2D::new(&self.context, position_rt.tex(), CLBufferMode::Read);
@@ -369,7 +365,7 @@ impl Baker {
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
         // Hey future me, trilinear filtering is probably flipped!
-        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(22), 1, 128, 512*16, size);
+        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(22), 1, 128, 512, size);
 
         let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32 + 1, 32, 3, 2);
         println!("Using {}B per kernel", neural_network.required_cache_size());
@@ -439,6 +435,8 @@ impl Baker {
                     self.command_queue.write_buffer(&cl_aabb, &mut aabb as *mut AABB as *mut c_void);
                     let mut zero = 0.0f32;
                     self.command_queue.write_buffer(&cl_loss, &mut zero as *mut f32 as *mut c_void);
+                    let mut zeros = vec![0.0f32; multi_hash_grid.required_nn_inputs() + 1];
+                    self.command_queue.write_buffer(&cl_errors, zeros.as_mut_ptr() as *mut c_void);
 
                     self.kernel.set_arg_buffer(0, &cl_display_target);
                     self.kernel.set_arg_buffer(1, &cl_position);
@@ -477,12 +475,17 @@ impl Baker {
                     self.command_queue.finish();
                     
                     self.command_queue.read_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr());
-                    neural_network.fix_nan();
+                    //neural_network.fix_nan();
                     let mut loss = 0.0f32;
                     self.command_queue.read_buffer(&cl_loss, &mut loss as *mut f32);
                     println!("loss: {}", loss);
                     multi_hash_grid.read(&self.command_queue);
-                    multi_hash_grid.fix_nan();
+                    //multi_hash_grid.fix_nan();
+
+                    // FIND A BETTER SOLUTION THAN FIXING NAN VALUES!! PREVENT THEM!!! (L2 regulization??)
+                    // google for: weight explosion or nn divergence
+                    // ON TOP OF THAT, MAKE RELU WORK
+                    // ALSO CREATE SMALL 3x3 kernels which respect eachothers weights or errors?
 
                     // Release gl resources
                     self.command_queue.release_gl_texture(&cl_display_target);

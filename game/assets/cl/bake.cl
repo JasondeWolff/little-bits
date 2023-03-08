@@ -43,7 +43,7 @@ __kernel void render(write_only image2d_t out,
 	const size_t height = get_global_size(1);
     const float unit = 1.0f / (width * height);
 
-    float learningRate = 0.3f;
+    float learningRate = 0.1f;
 
     // Allows a single printf per kernel
     bool oc = true;
@@ -109,9 +109,8 @@ __kernel void render(write_only image2d_t out,
         Forward(&oc, nn, in_weights, cache);
         float3 color = (float3)(cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 1, &oc)], cache[OutputNeuron(nn, 2, &oc)]);
 
-        float4 target = read_imagef(base_color_target, (int2)(x, y));
-
         // Calculate errors
+        float4 target = read_imagef(base_color_target, (int2)(x, y));
         {
             float error = target.x - cache[OutputNeuron(nn, 0, &oc)];
             float sign = error > 0.0 ? 1.0 : -1.0;
@@ -125,12 +124,14 @@ __kernel void render(write_only image2d_t out,
             sign = error > 0.0 ? 1.0 : -1.0;
             cache[OutputNeuron(nn, 2, &oc)] = error * error * -sign;
 
-            AtomicAddFloat(&errors[0], -error * unit);
+            AtomicAddFloat(&errors[0], cache[OutputNeuron(nn, 0, &oc)]);
+            AtomicAddFloat(&errors[1], cache[OutputNeuron(nn, 1, &oc)]);
+            AtomicAddFloat(&errors[2], cache[OutputNeuron(nn, 2, &oc)]);
         }
 
         // Store loss
         {
-            float localLoss = cache[OutputNeuron(nn, 0, &oc)] * cache[OutputNeuron(nn, 0, &oc)] + cache[OutputNeuron(nn, 1, &oc)] * cache[OutputNeuron(nn, 1, &oc)] + cache[OutputNeuron(nn, 2, &oc)] * cache[OutputNeuron(nn, 2, &oc)];
+            float localLoss = fabs(cache[OutputNeuron(nn, 0, &oc)]) + fabs(cache[OutputNeuron(nn, 1, &oc)]) + fabs(cache[OutputNeuron(nn, 2, &oc)]);
             AtomicAddFloat(&loss[0], localLoss);
         }
 
@@ -151,7 +152,7 @@ __kernel void render(write_only image2d_t out,
     }
     else
     {
-        write_imagef(out, (int2)(x, y), (float4)(1.0, 0.0, 0.0, 1.0));
+        //write_imagef(out, (int2)(x, y), (float4)(1.0, 0.0, 0.0, 1.0));
     }
 }
 
@@ -189,7 +190,7 @@ __kernel void train(read_only image2d_t position_target,
     }
 #endif
 
-    float learningRate = 0.3f;
+    float learningRate = 10.0f;
 
     // Allows a single printf per kernel
     bool oc = true;
@@ -249,11 +250,12 @@ __kernel void train(read_only image2d_t position_target,
         }
 
         Forward(&oc, nn, in_weights, cache);
-        float3 color = (float3)(cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 0, &oc)]);
 
         // Set errors
         {
-            cache[OutputNeuron(nn, 0, &oc)] = errors[0];
+            cache[OutputNeuron(nn, 0, &oc)] = errors[0] * unit;
+            cache[OutputNeuron(nn, 1, &oc)] = errors[1] * unit;
+            cache[OutputNeuron(nn, 2, &oc)] = errors[2] * unit;
         }
 
         Backpropagate(&oc, nn, in_weights, out_weights, cache, learningRate, unit);
@@ -261,7 +263,7 @@ __kernel void train(read_only image2d_t position_target,
         // Backpropagate mhg
         for (int l = 0; l < mhgMeta->resolutionLayers; l++)
         {
-            float delta = learningRate * cache[InputNeuronDelta(nn, l, &oc)] * 10000.0;
+            float delta = learningRate * cache[InputNeuronDelta(nn, l, &oc)] * width * height;
             //delta = clamp(delta, -5000.0f, 5000.0f);
 
             float3 pos = -aabb->low + (ray.origin + ray.direction * t);
