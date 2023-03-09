@@ -67,7 +67,7 @@ int GridIndex(__global MutliHashGridMeta* mhg, int layer, int feature, int3 pos,
         }
     }
 
-    if (pos.x < 0 || pos.x >= mhg->width || pos.y < 0 || pos.y >= mhg->height || pos.z < 0 || pos.z >= mhg->depth)
+    if (pos.x < 0 || pos.x >= (int)(res) || pos.y < 0 || pos.y >= (int)(res) || pos.z < 0 || pos.z >= (int)(res))
     {
         if (*oc)
         {
@@ -79,7 +79,7 @@ int GridIndex(__global MutliHashGridMeta* mhg, int layer, int feature, int3 pos,
             if (pos.y < 0 || pos.y >= mhg->height)
             {
                 printf("pos.y = %i range = [0, %i>\n", pos.y, mhg->height);
-                printf("r = %f xyz = %f %f %f whd = %i %i %i pos = %f %f %f\nr = %i maxEntries = %i\nindex = %i range = [0, %i>\nlayer = %i range = [0, %i>\nfeature = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.z = %i range = [0, %i>\n\n", res, invx, invy, invz, mhg->width, mhg->height, mhg->depth, pp.x, pp.y, pp.z, resolution, mhg->maxEntries, index, mhg->resolutionLayers * mhg->maxEntries * mhg->featuresPerEntry, layer, mhg->resolutionLayers, feature, mhg->featuresPerEntry, pos.x, mhg->width, pos.y, mhg->height, pos.z, mhg->depth);
+                printf("r = %f xyz = %f %f %f whd = %f %f %f pos = %f %f %f\nr = %i maxEntries = %i\nindex = %i range = [0, %i>\nlayer = %i range = [0, %i>\nfeature = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.z = %i range = [0, %i>\n\n", res, invx, invy, invz, mhg->width, mhg->height, mhg->depth, pp.x, pp.y, pp.z, (int)(res), mhg->maxEntries, index, mhg->resolutionLayers * mhg->maxEntries * mhg->featuresPerEntry, layer, mhg->resolutionLayers, feature, mhg->featuresPerEntry, pos.x, mhg->width, pos.y, mhg->height, pos.z, mhg->depth);
             }
             if (pos.z < 0 || pos.z >= mhg->depth)
             {
@@ -95,7 +95,7 @@ int GridIndex(__global MutliHashGridMeta* mhg, int layer, int feature, int3 pos,
         if (*oc)
         {
             printf("[OpenCL][ERROR] index is out of range. (GridIndex)\n");
-            printf("r = %i maxEntries = %i\nindex = %i range = [0, %i>\nlayer = %i range = [0, %i>\nfeature = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.z = %i range = [0, %i>\n\n", resolution, mhg->maxEntries, index, mhg->resolutionLayers * mhg->maxEntries * mhg->featuresPerEntry, layer, mhg->resolutionLayers, feature, mhg->featuresPerEntry, pos.x, mhg->width, pos.y, mhg->height, pos.z, mhg->depth);
+            printf("r = %i maxEntries = %i\nindex = %i range = [0, %i>\nlayer = %i range = [0, %i>\nfeature = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.y = %i range = [0, %i>\npos.z = %i range = [0, %i>\n\n", (int)(res), mhg->maxEntries, index, mhg->resolutionLayers * mhg->maxEntries * mhg->featuresPerEntry, layer, mhg->resolutionLayers, feature, mhg->featuresPerEntry, pos.x, mhg->width, pos.y, mhg->height, pos.z, mhg->depth);
 
             *oc = false;
         }

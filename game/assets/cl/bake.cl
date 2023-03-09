@@ -1,16 +1,16 @@
 #pragma OPENCL EXTENSION cl_intel_printf : enable
 
-//#define RELU
+#define RELU
 //#define CLAMP_DELTAS
 //#define USE_BIASES
 
-//#define DEBUG_MODE
+#define DEBUG_MODE
 //#define PROGRESS_COUNTER
 
 #include "rand.cl"
 #include "common.cl"
 #include "multi_hash_grid.cl"
-#include "nn.cl"
+#include "nn2.cl"
 
 __kernel void render(write_only image2d_t out,
     read_only image2d_t position_target,
@@ -43,7 +43,7 @@ __kernel void render(write_only image2d_t out,
 	const size_t height = get_global_size(1);
     const float unit = 1.0f / (width * height);
 
-    float learningRate = 0.1f;
+    float learningRate = 1.0f;
 
     // Allows a single printf per kernel
     bool oc = true;
@@ -111,23 +111,9 @@ __kernel void render(write_only image2d_t out,
 
         // Calculate errors
         float4 target = read_imagef(base_color_target, (int2)(x, y));
-        {
-            float error = target.x - cache[OutputNeuron(nn, 0, &oc)];
-            float sign = error > 0.0 ? 1.0 : -1.0;
-            cache[OutputNeuron(nn, 0, &oc)] = error * error * -sign;
-
-            error = target.y - cache[OutputNeuron(nn, 1, &oc)];
-            sign = error > 0.0 ? 1.0 : -1.0;
-            cache[OutputNeuron(nn, 1, &oc)] = error * error * -sign;
-
-            error = target.z - cache[OutputNeuron(nn, 2, &oc)];
-            sign = error > 0.0 ? 1.0 : -1.0;
-            cache[OutputNeuron(nn, 2, &oc)] = error * error * -sign;
-
-            AtomicAddFloat(&errors[0], cache[OutputNeuron(nn, 0, &oc)]);
-            AtomicAddFloat(&errors[1], cache[OutputNeuron(nn, 1, &oc)]);
-            AtomicAddFloat(&errors[2], cache[OutputNeuron(nn, 2, &oc)]);
-        }
+        cache[TargetValue(nn, 0, &oc)] = target.x;
+        cache[TargetValue(nn, 1, &oc)] = target.y;
+        cache[TargetValue(nn, 2, &oc)] = target.z;
 
         // Store loss
         {
@@ -148,11 +134,6 @@ __kernel void render(write_only image2d_t out,
         }
 
         write_imagef(out, (int2)(x, y), (float4)(color, 1.0));
-        //write_imagef(out, (int2)(x, y), (float4)(target.xyz, 1.0));
-    }
-    else
-    {
-        //write_imagef(out, (int2)(x, y), (float4)(1.0, 0.0, 0.0, 1.0));
     }
 }
 

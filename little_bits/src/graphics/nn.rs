@@ -152,7 +152,8 @@ impl NeuralNetwork {
     }
 
     fn required_cache_size(&self) -> usize {
-        (self.input_count + self.hidden_count * self.hidden_layer_count + self.output_count) as usize * 2 * 4
+        // Activations + Deltas + Targets
+        ((self.input_count + self.hidden_count * self.hidden_layer_count + self.output_count) as usize * 2 + self.output_count as usize) * 4
     }
 
     fn fix_nan(&mut self) {
