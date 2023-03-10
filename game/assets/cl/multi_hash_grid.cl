@@ -12,14 +12,20 @@ typedef struct _MultiHashGridMeta
     float depth;
 } MutliHashGridMeta;
 
+inline float ln(float x)
+{
+    return log10(x) / log10(2.71828f);
+}
+
 inline float Resolution(__global MutliHashGridMeta* mhg, int layer)
 {
-    if (mhg->resolutionLayers >= 1)
+    if (mhg->resolutionLayers <= 1)
     {
         return mhg->minResolution;
     }
 
-    return floor(lerp((float)(mhg->minResolution), (float)(mhg->maxResolution), (float)(layer) / (float)(mhg->resolutionLayers - 1))); // BREAKS IF resolutionLayers <= 1
+    return (float)(mhg->minResolution) * exp((ln((float)(mhg->maxResolution)) - ln((float)(mhg->minResolution))) / ((float)(layer + 1)));
+    //return floor(lerp((float)(mhg->minResolution), (float)(mhg->maxResolution), (float)(layer) / (float)(mhg->resolutionLayers - 1)));
 }
 
 // Source: https://www.researchgate.net/publication/2909661_Optimized_Spatial_Hashing_for_Collision_Detection_of_Deformable_Objects

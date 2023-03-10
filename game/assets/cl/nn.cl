@@ -303,20 +303,12 @@ float inline DevSigmoid(float x)
 
 float Activation(float x)
 {
-#ifdef RELU
     return ReLU(x);
-#else
-    return Sigmoid(x);
-#endif
 }
 
 float DevActivation(float x)
 {
-#ifdef RELU
     return DevReLU(x);
-#else
-    return DevSigmoid(x);
-#endif
 }
 
 void Forward(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, __local float* cache)
@@ -370,12 +362,25 @@ void Forward(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, _
         activation += in_weights[OutputNeuronBias(nn, i, oc)];
 #endif
 
-        cache[OutputNeuron(nn, i, oc)] = Activation(activation);
+        cache[OutputNeuron(nn, i, oc)] = activation;//Activation(activation);
     }
 }
 
-void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, __global float* out_weights, __local float* cache, float learningRate, float avgFactor, __global float* loss)
+void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, __global float* out_weights, __local float* cache, float learningRate, float avgFactor, float L2reg, __global float* loss)
 {
+    // Calculate L2 penalty
+    float weightSum = 0.0f;
+    {
+        int weightsSize = nn->inputCount * nn->hiddenCount + nn->hiddenCount * nn->hiddenCount * (nn->hiddenLayerCount - 1) + nn->hiddenCount * nn->outputCount;
+        for (int i = 0; i < weightsSize; i++)
+        {
+            float weight = in_weights[i];
+            weightSum += weight * weight;
+        }
+
+        weightSum *= L2reg;
+    }
+
     // Calculate deltas
     {
         // Output deltas
@@ -383,7 +388,8 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
         {
             float outputNeuron = cache[OutputNeuron(nn, i, oc)];
             float error = cache[TargetValue(nn, i, oc)] - outputNeuron;
-            cache[OutputNeuronDelta(nn, i, oc)] = error * DevActivation(outputNeuron) * avgFactor;
+            error -= weightSum;
+            cache[OutputNeuronDelta(nn, i, oc)] = error * /*DevActivation(outputNeuron) */ avgFactor;
 
             // Store loss
             AtomicAddFloat(&loss[0], error * error);
@@ -438,6 +444,7 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
 #ifdef CLAMP_DELTAS
                 delta = clamp(delta, -0.5f, 0.5f);
 #endif
+
                 AtomicAddFloat(&out_weights[HiddenOutputNeuronWeight(nn, i, j, oc)], delta);
             }
         }
@@ -453,6 +460,7 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
 #ifdef CLAMP_DELTAS
                     delta = clamp(delta, -0.5f, 0.5f);
 #endif
+
                     AtomicAddFloat(&out_weights[HiddenHiddenNeuronWeight(nn, i, j, l, oc)], delta);
                 }
             }
@@ -467,6 +475,7 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
 #ifdef CLAMP_DELTAS
                 delta = clamp(delta, -0.5f, 0.5f);
 #endif
+
                 AtomicAddFloat(&out_weights[InputHiddenNeuronWeight(nn, i, j, oc)], delta);
             }
         }

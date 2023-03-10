@@ -1,11 +1,9 @@
 #pragma OPENCL EXTENSION cl_intel_printf : enable
 
-#define RELU
 //#define CLAMP_DELTAS
 //#define USE_BIASES
 
 //#define DEBUG_MODE
-//#define PROGRESS_COUNTER
 
 #include "rand.cl"
 #include "common.cl"
@@ -43,7 +41,10 @@ __kernel void render(write_only image2d_t out,
 	const size_t height = get_global_size(1);
     const float unit = 1.0f / (width * height);
 
+    // float learningRate = 3.0f;
+    // float l2reg = 0.0000001;
     float learningRate = 0.3f;
+    float l2reg = 0.0000001;
 
     // Allows a single printf per kernel
     bool oc = true;
@@ -103,7 +104,7 @@ __kernel void render(write_only image2d_t out,
             }
 
             // Give angle to learn mipmaps
-            cache[InputNeuron(nn, mhgMeta->resolutionLayers, &oc)] = fabs(ray.direction.y) + fabs(ray.direction.x);
+            //cache[InputNeuron(nn, mhgMeta->resolutionLayers, &oc)] = fabs(ray.direction.y) + fabs(ray.direction.x);
         }
 
         Forward(&oc, nn, in_weights, cache);
@@ -115,7 +116,7 @@ __kernel void render(write_only image2d_t out,
         cache[TargetValue(nn, 1, &oc)] = target.y;
         cache[TargetValue(nn, 2, &oc)] = target.z;
 
-        Backpropagate(&oc, nn, in_weights, out_weights, cache, learningRate, unit, loss);
+        Backpropagate(&oc, nn, in_weights, out_weights, cache, learningRate, l2reg, unit, loss);
 
         // Backpropagate mhg
         for (int l = 0; l < mhgMeta->resolutionLayers; l++)

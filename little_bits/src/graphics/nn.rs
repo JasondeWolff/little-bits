@@ -223,7 +223,7 @@ impl Default for BakeParameters {
             epochs: 10000,
             sample_positions: 300,
             sample_distribution: BakeSampleDistribution::Random,
-            sample_resolution: 1024
+            sample_resolution: 512
         }
     }
 }
@@ -330,7 +330,7 @@ impl Baker {
 
         let mut camera = Camera::new();
         camera.set_aspect_ratio(Some(1.0));
-        camera.set_fov(90.0);
+        camera.set_fov(60.0);
         let camera_points = match params.sample_distribution {
             BakeSampleDistribution::Random => Self::random_sphere_points(params.sample_positions, radius * 1.5),
             BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius * 1.5)
@@ -362,9 +362,9 @@ impl Baker {
 
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
-        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(23), 1, 128, 512*16, size);
+        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(22), 1, 16, 524288, size);
 
-        let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32 + 1, 32, 3, 2);
+        let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32, 64, 3, 2);
         println!("Using {}B per kernel", neural_network.required_cache_size());
         let mut cl_nn_rep = CLNeuralNetwork::new(&neural_network);
         let cl_neural_network = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLNeuralNetwork>());
@@ -411,7 +411,7 @@ impl Baker {
                     }  render_target.unbind();
                 }
 
-                let mut cl_camera_rep = CLCamera::new(-camera_point, &(center - camera_point).normalized(), 90.0, 1.0);
+                let mut cl_camera_rep = CLCamera::new(-camera_point, &(center - camera_point).normalized(), 60.0, 1.0);
 
                 // Train nemo
                 gl_finish();
@@ -457,17 +457,10 @@ impl Baker {
                     self.command_queue.finish();
                     
                     self.command_queue.read_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr());
-                    //neural_network.fix_nan();
                     let mut loss = 0.0f32;
                     self.command_queue.read_buffer(&cl_loss, &mut loss as *mut f32);
                     println!("loss: {}", loss);
                     multi_hash_grid.read(&self.command_queue);
-                    //multi_hash_grid.fix_nan();
-
-                    // FIND A BETTER SOLUTION THAN FIXING NAN VALUES!! PREVENT THEM!!! (L2 regulization??)
-                    // google for: weight explosion or nn divergence
-                    // ON TOP OF THAT, MAKE RELU WORK
-                    // ALSO CREATE SMALL 3x3 kernels which respect eachothers weights or errors?
 
                     // Release gl resources
                     self.command_queue.release_gl_texture(&cl_display_target);
