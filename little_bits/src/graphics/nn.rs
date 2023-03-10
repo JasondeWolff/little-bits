@@ -199,7 +199,6 @@ pub struct Baker {
     command_queue: CLCommandQueue,
     program: CLProgram,
     kernel: CLKernel,
-    train_kernel: CLKernel,
     shader_program: GLShaderProgram,
 
     display_shader_program: GLShaderProgram,
@@ -224,7 +223,7 @@ impl Default for BakeParameters {
             epochs: 10000,
             sample_positions: 300,
             sample_distribution: BakeSampleDistribution::Random,
-            sample_resolution: 512
+            sample_resolution: 1024
         }
     }
 }
@@ -236,7 +235,6 @@ impl Baker {
         let program_src = app().resources().get_text(String::from("assets/cl/bake.cl"));
         let program = CLProgram::new(&context, &program_src.as_ref(), Some(&String::from("assets/cl/")));
         let kernel = CLKernel::new(&program, &String::from("render"));
-        let train_kernel = CLKernel::new(&program, &String::from("train"));
 
         let shader_program;
         {
@@ -262,7 +260,6 @@ impl Baker {
             command_queue: command_queue,
             program: program,
             kernel: kernel,
-            train_kernel: train_kernel,
             shader_program: shader_program,
             display_shader_program: display_shader_program,
             display_vao: display_vao
@@ -365,8 +362,7 @@ impl Baker {
 
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
-        // Hey future me, trilinear filtering is probably flipped!
-        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(22), 1, 128, 512, size);
+        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(23), 1, 128, 512*16, size);
 
         let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32 + 1, 32, 3, 2);
         println!("Using {}B per kernel", neural_network.required_cache_size());
@@ -458,21 +454,6 @@ impl Baker {
 
                     let local_work_dims = vec![1, 1];
                     self.command_queue.execute(&self.kernel, &vec![display_target.width() as usize, display_target.height() as usize], Some(&local_work_dims));
-                    self.command_queue.finish();
-
-                    self.train_kernel.set_arg_buffer(0, &cl_position);
-                    self.train_kernel.set_arg_buffer(1, &cl_camera);
-                    self.train_kernel.set_arg_buffer(2, &cl_neural_network);
-                    self.train_kernel.set_arg_buffer(3, &cl_in_weights);
-                    self.train_kernel.set_arg_buffer(4, &cl_out_weights);
-                    self.train_kernel.set_arg_empty(5, neural_network.required_cache_size());
-                    self.train_kernel.set_arg_int(6, (neural_network.required_cache_size() / 4) as i32);
-                    multi_hash_grid.set_kernel_arg(&self.train_kernel, 7);
-                    self.train_kernel.set_arg_buffer(10, &cl_aabb);
-                    self.train_kernel.set_arg_buffer(11, &cl_errors);
-                    self.train_kernel.set_arg_float(12, timer.elapsed() as f32);
-
-                    self.command_queue.execute(&self.train_kernel, &vec![display_target.width() as usize, display_target.height() as usize], Some(&local_work_dims));
                     self.command_queue.finish();
                     
                     self.command_queue.read_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr());
