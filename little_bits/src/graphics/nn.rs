@@ -16,9 +16,6 @@ struct MultiHashGrid {
     elems: Vec<f32>,
     elem_buffer_readonly: CLBuffer,
     elem_buffer_writeonly: CLBuffer,
-    momentum: Vec<f32>,
-    momentum_buffer_readonly: CLBuffer,
-    momentum_buffer_writeonly: CLBuffer
 }
 
 #[repr(C)]
@@ -74,10 +71,7 @@ impl MultiHashGrid {
             meta_buffer: CLBuffer::new(cl_context, CLBufferMode::Read, std::mem::size_of::<MultiHashGridMeta>()),
             elems: elems,
             elem_buffer_readonly: CLBuffer::new(cl_context, CLBufferMode::Read, resolution_layers * max_entries * features_per_entry * 4),
-            elem_buffer_writeonly: CLBuffer::new(cl_context, CLBufferMode::Write, resolution_layers * max_entries * features_per_entry * 4),
-            momentum: vec![0.0f32; resolution_layers * max_entries * features_per_entry],
-            momentum_buffer_readonly: CLBuffer::new(cl_context, CLBufferMode::Read, resolution_layers * max_entries * features_per_entry * 4),
-            momentum_buffer_writeonly: CLBuffer::new(cl_context, CLBufferMode::Write, resolution_layers * max_entries * features_per_entry * 4)
+            elem_buffer_writeonly: CLBuffer::new(cl_context, CLBufferMode::Write, resolution_layers * max_entries * features_per_entry * 4)
         }
     }
 
@@ -85,13 +79,10 @@ impl MultiHashGrid {
         cl_command_queue.write_buffer(&self.meta_buffer, &mut self.meta as *mut MultiHashGridMeta as *mut c_void);
         cl_command_queue.write_buffer(&self.elem_buffer_readonly, self.elems.as_mut_ptr() as *mut c_void);
         cl_command_queue.write_buffer(&self.elem_buffer_writeonly, self.elems.as_mut_ptr() as *mut c_void);
-        cl_command_queue.write_buffer(&self.momentum_buffer_readonly, self.momentum.as_mut_ptr() as *mut c_void);
-        cl_command_queue.write_buffer(&self.momentum_buffer_writeonly, self.momentum.as_mut_ptr() as *mut c_void);
     }
 
     pub fn read(&mut self, cl_command_queue: &CLCommandQueue) {
         cl_command_queue.read_buffer(&self.elem_buffer_writeonly, self.elems.as_mut_ptr() as *mut c_void);
-        cl_command_queue.read_buffer(&self.momentum_buffer_writeonly, self.momentum.as_mut_ptr() as *mut c_void);
     }
 
     fn fix_nan(&mut self) {
@@ -107,9 +98,7 @@ impl MultiHashGrid {
         cl_kernel.set_arg_buffer(idx + 0, &self.meta_buffer);
         cl_kernel.set_arg_buffer(idx + 1, &self.elem_buffer_readonly);
         cl_kernel.set_arg_buffer(idx + 2, &self.elem_buffer_writeonly);
-        cl_kernel.set_arg_buffer(idx + 3, &self.momentum_buffer_readonly);
-        cl_kernel.set_arg_buffer(idx + 4, &self.momentum_buffer_writeonly);
-        idx + 5
+        idx + 3
     }
 
     pub fn required_nn_inputs(&self) -> usize {
@@ -234,7 +223,7 @@ impl Default for BakeParameters {
             epochs: 10000,
             sample_positions: 300,
             sample_distribution: BakeSampleDistribution::Random,
-            sample_resolution: 512
+            sample_resolution: 1024
         }
     }
 }
@@ -374,15 +363,17 @@ impl Baker {
         let cl_in_weights = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<f32>() * neural_network.weights.len());
         let cl_out_weights = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>() * neural_network.weights.len());
 
-        let cl_in_momentum = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<f32>() * neural_network.weights.len());
-        let cl_out_momentum = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>() * neural_network.weights.len());
-        let mut momentum = vec![0.0f32; neural_network.weights.len()];
+        let cl_in_momentum = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<f32>() * neural_network.weights.len() * 2);
+        let cl_out_momentum = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>() * neural_network.weights.len() * 2);
+        let mut momentum = vec![0.0f32; neural_network.weights.len() * 2];
 
         let cl_aabb = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<AABB>());
         let cl_loss = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>());
         let cl_errors = CLBuffer::new(&self.context, CLBufferMode::ReadWrite, std::mem::size_of::<f32>() * (multi_hash_grid.required_nn_inputs() + 1));
 
         let mut iters_per_point = 10.0f32;
+
+        let mut timer = Timer::new();
 
         for e in 0..params.epochs {
             for camera_point in &camera_points {
@@ -458,9 +449,9 @@ impl Baker {
                         self.kernel.set_arg_empty(12, neural_network.required_cache_size());
                         self.kernel.set_arg_int(13, (neural_network.required_cache_size() / 4) as i32);
                         multi_hash_grid.set_kernel_arg(&self.kernel, 14);
-                        self.kernel.set_arg_buffer(19, &cl_aabb);
-                        self.kernel.set_arg_buffer(20, &cl_loss);
-                        self.kernel.set_arg_buffer(21, &cl_errors);
+                        self.kernel.set_arg_buffer(17, &cl_aabb);
+                        self.kernel.set_arg_buffer(18, &cl_loss);
+                        self.kernel.set_arg_buffer(19, &cl_errors);
 
                         let local_work_dims = vec![1, 1];
                         self.command_queue.execute(&self.kernel, &vec![display_target.width() as usize, display_target.height() as usize], Some(&local_work_dims));
@@ -480,14 +471,6 @@ impl Baker {
                         self.command_queue.release_gl_texture(&cl_normal);
                         self.command_queue.release_gl_texture(&cl_base_color);
                         self.command_queue.release_gl_texture(&cl_position);
-
-                        for i in 0..momentum.len() {
-                            momentum[i] *= 0.1;
-                        }
-
-                        for i in 0..multi_hash_grid.momentum.len() {
-                            multi_hash_grid.momentum[i] *= 0.1;
-                        }
                     }
 
                     // Display rt result
@@ -508,6 +491,8 @@ impl Baker {
 
                     window.swap_buffers();
                 }
+ 
+                println!("time: {}s", ((timer.elapsed() * 10.0) as i32 as f32) / 10.0);
             }
 
             println!("EPOCHS: [{} / {}]", e, params.epochs);

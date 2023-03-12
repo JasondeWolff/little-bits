@@ -1,6 +1,9 @@
 #pragma OPENCL EXTENSION cl_intel_printf : enable
 
-//#define CLAMP_DELTAS
+//#define ADA_GRAD
+//#define RMSP
+#define ADAM
+
 //#define USE_BIASES
 
 //#define DEBUG_MODE
@@ -26,17 +29,15 @@ __kernel void render(write_only image2d_t out,
     __global MutliHashGridMeta* mhgMeta,
     __global float* in_mhgElems,
     __global float* out_mhgElems,
-    __global float* in_mhg_momentum,
-    __global float* out_mhg_momentum,
     __global AABB* aabb,
     __global float* loss,
     __global float* errors)
 {
     // Zero cache
-    for (int i = 0; i < cacheSize; i++)
-    {
-        cache[i] = 0.0;
-    }
+    // for (int i = 0; i < cacheSize; i++)
+    // {
+    //     cache[i] = 0.0;
+    // }
 
     // Get kernel info
     const size_t x = get_global_id(0);
@@ -45,12 +46,13 @@ __kernel void render(write_only image2d_t out,
 	const size_t height = get_global_size(1);
     const float unit = 1.0f / (width * height);
 
-    // float learningRate = 3.0f;
-    // float l2reg = 0.0000001;
-    float learningRate = 0.01f;
-    float l2reg = 0.000001;
-    float momentumStrength = 0.25; // FIX MOMENTUM, look better at the adam paper
-    // AND MOST IMPORTANT, (HOW) DO THEY BATCH??
+    float learningRate = 0.03f * 0.25f;
+    float l2reg = 0.000001f;
+    float beta1 = 0.9f;
+    float beta2 = 0.999f;
+    //double epsilon = 0.0001f;
+    //double epsilon = 0.00000001f;
+    double epsilon = 0.000000000000001f;
 
     // Allows a single printf per kernel
     bool oc = true;
@@ -132,7 +134,7 @@ __kernel void render(write_only image2d_t out,
         cache[TargetValue(nn, 1, &oc)] = target.y;
         cache[TargetValue(nn, 2, &oc)] = target.z;
 
-        Backpropagate(&oc, nn, in_weights, out_weights, in_momentum, out_momentum, momentumStrength, cache, learningRate, l2reg, unit, loss);
+        Backpropagate(&oc, nn, in_weights, out_weights, in_momentum, out_momentum, beta1, beta2, epsilon, cache, learningRate, l2reg, unit, loss);
 
         // Backpropagate mhg
         float3 pos = -aabb->low + (ray.origin + ray.direction * t);
