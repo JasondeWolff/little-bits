@@ -15,7 +15,10 @@ struct MultiHashGrid {
     meta_buffer: CLBuffer,
     elems: Vec<f32>,
     elem_buffer_readonly: CLBuffer,
-    elem_buffer_writeonly: CLBuffer
+    elem_buffer_writeonly: CLBuffer,
+    momentum: Vec<f32>,
+    momentum_buffer_readonly: CLBuffer,
+    momentum_buffer_writeonly: CLBuffer
 }
 
 #[repr(C)]
@@ -71,7 +74,10 @@ impl MultiHashGrid {
             meta_buffer: CLBuffer::new(cl_context, CLBufferMode::Read, std::mem::size_of::<MultiHashGridMeta>()),
             elems: elems,
             elem_buffer_readonly: CLBuffer::new(cl_context, CLBufferMode::Read, resolution_layers * max_entries * features_per_entry * 4),
-            elem_buffer_writeonly: CLBuffer::new(cl_context, CLBufferMode::Write, resolution_layers * max_entries * features_per_entry * 4)
+            elem_buffer_writeonly: CLBuffer::new(cl_context, CLBufferMode::Write, resolution_layers * max_entries * features_per_entry * 4),
+            momentum: vec![0.0f32; resolution_layers * max_entries * features_per_entry],
+            momentum_buffer_readonly: CLBuffer::new(cl_context, CLBufferMode::Read, resolution_layers * max_entries * features_per_entry * 4),
+            momentum_buffer_writeonly: CLBuffer::new(cl_context, CLBufferMode::Write, resolution_layers * max_entries * features_per_entry * 4)
         }
     }
 
@@ -79,10 +85,13 @@ impl MultiHashGrid {
         cl_command_queue.write_buffer(&self.meta_buffer, &mut self.meta as *mut MultiHashGridMeta as *mut c_void);
         cl_command_queue.write_buffer(&self.elem_buffer_readonly, self.elems.as_mut_ptr() as *mut c_void);
         cl_command_queue.write_buffer(&self.elem_buffer_writeonly, self.elems.as_mut_ptr() as *mut c_void);
+        cl_command_queue.write_buffer(&self.momentum_buffer_readonly, self.momentum.as_mut_ptr() as *mut c_void);
+        cl_command_queue.write_buffer(&self.momentum_buffer_writeonly, self.momentum.as_mut_ptr() as *mut c_void);
     }
 
     pub fn read(&mut self, cl_command_queue: &CLCommandQueue) {
         cl_command_queue.read_buffer(&self.elem_buffer_writeonly, self.elems.as_mut_ptr() as *mut c_void);
+        cl_command_queue.read_buffer(&self.momentum_buffer_writeonly, self.momentum.as_mut_ptr() as *mut c_void);
     }
 
     fn fix_nan(&mut self) {
@@ -98,7 +107,9 @@ impl MultiHashGrid {
         cl_kernel.set_arg_buffer(idx + 0, &self.meta_buffer);
         cl_kernel.set_arg_buffer(idx + 1, &self.elem_buffer_readonly);
         cl_kernel.set_arg_buffer(idx + 2, &self.elem_buffer_writeonly);
-        idx + 3
+        cl_kernel.set_arg_buffer(idx + 3, &self.momentum_buffer_readonly);
+        cl_kernel.set_arg_buffer(idx + 4, &self.momentum_buffer_writeonly);
+        idx + 5
     }
 
     pub fn required_nn_inputs(&self) -> usize {
@@ -270,28 +281,20 @@ impl Baker {
     fn uniform_sphere_points(point_count: usize, radius: f32) -> Vec<Float3> {
         let mut points = Vec::with_capacity(point_count);
 
-        let mut n_count = 0;
-        let a = (4.0 * PI * radius * radius) / point_count as f32;
+        let a = 4.0 * PI * 1.0 / point_count as f32;
         let d = a.sqrt();
-        let mv = (PI / d).round();
-        let dv = PI / mv;
-        let dphi = a / dv;
-
-        for m in 0..(mv as usize) {
-            let v = PI * (m as f32 + 0.5) / mv;
-            let mphi = (2.0 * PI * (v / dphi).sin()).round();
-            for n in 0..(mphi as usize) {
-                let phi = (2.0 * PI * n as f32) / mphi;
-
-                let x = v.sin() * phi.cos();
-                let y = v.sin() * phi.sin();
-                let z = v.cos();
+        let num_phi = (PI / d).round() as i32;
+        let d_phi = PI / num_phi as f32;
+        let d_theta = a / d_phi;
+        for m in 0..num_phi {
+            let phi = PI * (m as f32 + 0.5) / num_phi as f32;
+            let num_theta = (2.0 * PI * (phi).sin() / d_theta).round() as i32;
+            for n in 0..num_theta {
+                let theta = 2.0 * PI * n as f32 / num_theta as f32;
+                let x = radius * (phi).sin() * (theta).cos();
+                let y = radius * (phi).sin() * (theta).sin();
+                let z = radius * (phi).cos();
                 points.push(Float3::new(x, y, z));
-
-                n_count += 1;
-                if n_count >= point_count {
-                    return points;
-                }
             }
         }
 
@@ -336,7 +339,7 @@ impl Baker {
             BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius * 1.5)
         };
 
-        let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
+        //let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
 
         let position_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
         let cl_position = CLGLTexture2D::new(&self.context, position_rt.tex(), CLBufferMode::Read);
@@ -362,7 +365,7 @@ impl Baker {
 
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
-        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(22), 1, 16, 524288, size);
+        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(19), 2, 16, 512*16, size);
 
         let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32, 64, 3, 2);
         println!("Using {}B per kernel", neural_network.required_cache_size());
@@ -371,123 +374,140 @@ impl Baker {
         let cl_in_weights = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<f32>() * neural_network.weights.len());
         let cl_out_weights = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>() * neural_network.weights.len());
 
+        let cl_in_momentum = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<f32>() * neural_network.weights.len());
+        let cl_out_momentum = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>() * neural_network.weights.len());
+        let mut momentum = vec![0.0f32; neural_network.weights.len()];
+
         let cl_aabb = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<AABB>());
         let cl_loss = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>());
         let cl_errors = CLBuffer::new(&self.context, CLBufferMode::ReadWrite, std::mem::size_of::<f32>() * (multi_hash_grid.required_nn_inputs() + 1));
 
-        let mut timer = Timer::new();
+        let mut iters_per_point = 10.0f32;
 
         for e in 0..params.epochs {
-            if (e % 10 == 0) 
-            {
-                let br = 0;
-            }
-
             for camera_point in &camera_points {
-                glfw.poll_events();
+                for ci in 0..2 {
+                    iters_per_point -= 0.01;
+                    if iters_per_point < 1.0f32 { iters_per_point = 1.0f32; }
 
-                // Render inputs to rt's
-                gl_viewport(Int2::new(params.sample_resolution as i32, params.sample_resolution as i32));
-                {
-                    render_target.bind(); {
-                        gl_clear_color(Float3::new(0.0, 0.0, 0.0));
+                    glfw.poll_events();
+
+                    // Render inputs to rt's
+                    gl_viewport(Int2::new(params.sample_resolution as i32, params.sample_resolution as i32));
+                    {
+                        render_target.bind(); {
+                            gl_clear_color(Float3::new(0.0, 0.0, 0.0));
+                            gl_clear();
+
+                            let materials = &model.materials;
+
+                            for mesh in model.meshes.iter() {
+                                self.shader_program.bind(); {
+                                    self.shader_program.set_float4x4(&String::from("model"), Float4x4::identity());
+                                    self.shader_program.set_float4x4(&String::from("projection"), camera.get_proj_matrix());
+                                    self.shader_program.set_float4x4(&String::from("view"), Float4x4::look_at(camera_point.clone(), center, Float3::up()));
+                                    self.shader_program.set_float3(&String::from("viewPos"), camera_point.clone());
+
+                                    let material = &materials[mesh.material_idx()];
+                                    material.bind(&mut self.shader_program);
+
+                                    mesh.draw();
+                                } self.shader_program.unbind();
+                            }
+                        }  render_target.unbind();
+                    }
+
+                    let mut cl_camera_rep = CLCamera::new(camera_point.clone(), &(center - camera_point).normalized(), 60.0, 1.0);
+
+                    // Train nemo
+                    gl_finish();
+                    {
+                        // Acquire gl resources
+                        self.command_queue.acquire_gl_texture(&cl_position);
+                        self.command_queue.acquire_gl_texture(&cl_base_color);
+                        self.command_queue.acquire_gl_texture(&cl_normal);
+                        self.command_queue.acquire_gl_texture(&cl_mro);
+                        self.command_queue.acquire_gl_texture(&cl_emission);
+                        self.command_queue.acquire_gl_texture(&cl_display_target);
+
+                        self.command_queue.write_buffer(&cl_camera, &mut cl_camera_rep as *mut CLCamera as *mut c_void);
+                        self.command_queue.write_buffer(&cl_neural_network, &mut cl_nn_rep as *mut CLNeuralNetwork as *mut c_void);
+                        self.command_queue.write_buffer(&cl_in_weights, neural_network.weights.as_mut_ptr() as *mut c_void);
+                        self.command_queue.write_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr() as *mut c_void);
+                        self.command_queue.write_buffer(&cl_in_momentum, momentum.as_mut_ptr() as *mut c_void);
+                        self.command_queue.write_buffer(&cl_out_momentum, momentum.as_mut_ptr() as *mut c_void);
+                        multi_hash_grid.write(&self.command_queue);
+                        self.command_queue.write_buffer(&cl_aabb, &mut aabb as *mut AABB as *mut c_void);
+                        let mut zero = 0.0f32;
+                        self.command_queue.write_buffer(&cl_loss, &mut zero as *mut f32 as *mut c_void);
+                        let mut zeros = vec![0.0f32; multi_hash_grid.required_nn_inputs() + 1];
+                        self.command_queue.write_buffer(&cl_errors, zeros.as_mut_ptr() as *mut c_void);
+
+                        self.kernel.set_arg_buffer(0, &cl_display_target);
+                        self.kernel.set_arg_buffer(1, &cl_position);
+                        self.kernel.set_arg_buffer(2, &cl_base_color);
+                        self.kernel.set_arg_buffer(3, &cl_normal);
+                        self.kernel.set_arg_buffer(4, &cl_mro);
+                        self.kernel.set_arg_buffer(5, &cl_emission);
+                        self.kernel.set_arg_buffer(6, &cl_camera);
+                        self.kernel.set_arg_buffer(7, &cl_neural_network);
+                        self.kernel.set_arg_buffer(8, &cl_in_weights);
+                        self.kernel.set_arg_buffer(9, &cl_out_weights);
+                        self.kernel.set_arg_buffer(10, &cl_in_momentum);
+                        self.kernel.set_arg_buffer(11, &cl_out_momentum);
+                        self.kernel.set_arg_empty(12, neural_network.required_cache_size());
+                        self.kernel.set_arg_int(13, (neural_network.required_cache_size() / 4) as i32);
+                        multi_hash_grid.set_kernel_arg(&self.kernel, 14);
+                        self.kernel.set_arg_buffer(19, &cl_aabb);
+                        self.kernel.set_arg_buffer(20, &cl_loss);
+                        self.kernel.set_arg_buffer(21, &cl_errors);
+
+                        let local_work_dims = vec![1, 1];
+                        self.command_queue.execute(&self.kernel, &vec![display_target.width() as usize, display_target.height() as usize], Some(&local_work_dims));
+                        self.command_queue.finish();
+
+                        self.command_queue.read_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr());
+                        self.command_queue.read_buffer(&cl_out_momentum, momentum.as_mut_ptr());
+                        let mut loss = 0.0f32;
+                        self.command_queue.read_buffer(&cl_loss, &mut loss as *mut f32);
+                        println!("loss: {}", loss);
+                        multi_hash_grid.read(&self.command_queue);
+
+                        // Release gl resources
+                        self.command_queue.release_gl_texture(&cl_display_target);
+                        self.command_queue.release_gl_texture(&cl_emission);
+                        self.command_queue.release_gl_texture(&cl_mro);
+                        self.command_queue.release_gl_texture(&cl_normal);
+                        self.command_queue.release_gl_texture(&cl_base_color);
+                        self.command_queue.release_gl_texture(&cl_position);
+
+                        for i in 0..momentum.len() {
+                            momentum[i] *= 0.1;
+                        }
+
+                        for i in 0..multi_hash_grid.momentum.len() {
+                            multi_hash_grid.momentum[i] *= 0.1;
+                        }
+                    }
+
+                    // Display rt result
+                    gl_viewport(app().graphics().dimensions());
+                    {
                         gl_clear();
 
-                        let materials = &model.materials;
+                        self.display_shader_program.bind(); {
+                            let t = &display_target;//render_target.get_texture(GLRenderAttachment::Color(0)).unwrap();
+                            t.bind(0);
+                            self.display_shader_program.set_sampler_slot(&String::from("tex"), 0);
 
-                        for mesh in model.meshes.iter() {
-                            self.shader_program.bind(); {
-                                self.shader_program.set_float4x4(&String::from("model"), Float4x4::identity());
-                                self.shader_program.set_float4x4(&String::from("projection"), camera.get_proj_matrix());
-                                self.shader_program.set_float4x4(&String::from("view"), Float4x4::look_at(camera_point.clone(), center, Float3::up()));
-                                self.shader_program.set_float3(&String::from("viewPos"), camera_point.clone());
+                            self.display_vao.bind(); {
+                                gl_draw_arrays(gl::TRIANGLES, 0, 6);
+                            } self.display_vao.unbind();
+                        } self.display_shader_program.unbind();
+                    }
 
-                                let material = &materials[mesh.material_idx()];
-                                material.bind(&mut self.shader_program);
-
-                                mesh.draw();
-                            } self.shader_program.unbind();
-                        }
-                    }  render_target.unbind();
+                    window.swap_buffers();
                 }
-
-                let mut cl_camera_rep = CLCamera::new(-camera_point, &(center - camera_point).normalized(), 60.0, 1.0);
-
-                // Train nemo
-                gl_finish();
-                {
-                    // Acquire gl resources
-                    self.command_queue.acquire_gl_texture(&cl_position);
-                    self.command_queue.acquire_gl_texture(&cl_base_color);
-                    self.command_queue.acquire_gl_texture(&cl_normal);
-                    self.command_queue.acquire_gl_texture(&cl_mro);
-                    self.command_queue.acquire_gl_texture(&cl_emission);
-                    self.command_queue.acquire_gl_texture(&cl_display_target);
-
-                    self.command_queue.write_buffer(&cl_camera, &mut cl_camera_rep as *mut CLCamera as *mut c_void);
-                    self.command_queue.write_buffer(&cl_neural_network, &mut cl_nn_rep as *mut CLNeuralNetwork as *mut c_void);
-                    self.command_queue.write_buffer(&cl_in_weights, neural_network.weights.as_mut_ptr() as *mut c_void);
-                    self.command_queue.write_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr() as *mut c_void);
-                    multi_hash_grid.write(&self.command_queue);
-                    self.command_queue.write_buffer(&cl_aabb, &mut aabb as *mut AABB as *mut c_void);
-                    let mut zero = 0.0f32;
-                    self.command_queue.write_buffer(&cl_loss, &mut zero as *mut f32 as *mut c_void);
-                    let mut zeros = vec![0.0f32; multi_hash_grid.required_nn_inputs() + 1];
-                    self.command_queue.write_buffer(&cl_errors, zeros.as_mut_ptr() as *mut c_void);
-
-                    self.kernel.set_arg_buffer(0, &cl_display_target);
-                    self.kernel.set_arg_buffer(1, &cl_position);
-                    self.kernel.set_arg_buffer(2, &cl_base_color);
-                    self.kernel.set_arg_buffer(3, &cl_normal);
-                    self.kernel.set_arg_buffer(4, &cl_mro);
-                    self.kernel.set_arg_buffer(5, &cl_emission);
-                    self.kernel.set_arg_buffer(6, &cl_camera);
-                    self.kernel.set_arg_buffer(7, &cl_neural_network);
-                    self.kernel.set_arg_buffer(8, &cl_in_weights);
-                    self.kernel.set_arg_buffer(9, &cl_out_weights);
-                    self.kernel.set_arg_empty(10, neural_network.required_cache_size());
-                    self.kernel.set_arg_int(11, (neural_network.required_cache_size() / 4) as i32);
-                    multi_hash_grid.set_kernel_arg(&self.kernel, 12);
-                    self.kernel.set_arg_buffer(15, &cl_aabb);
-                    self.kernel.set_arg_buffer(16, &cl_loss);
-                    self.kernel.set_arg_buffer(17, &cl_errors);
-
-                    let local_work_dims = vec![1, 1];
-                    self.command_queue.execute(&self.kernel, &vec![display_target.width() as usize, display_target.height() as usize], Some(&local_work_dims));
-                    self.command_queue.finish();
-                    
-                    self.command_queue.read_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr());
-                    let mut loss = 0.0f32;
-                    self.command_queue.read_buffer(&cl_loss, &mut loss as *mut f32);
-                    println!("loss: {}", loss);
-                    multi_hash_grid.read(&self.command_queue);
-
-                    // Release gl resources
-                    self.command_queue.release_gl_texture(&cl_display_target);
-                    self.command_queue.release_gl_texture(&cl_emission);
-                    self.command_queue.release_gl_texture(&cl_mro);
-                    self.command_queue.release_gl_texture(&cl_normal);
-                    self.command_queue.release_gl_texture(&cl_base_color);
-                    self.command_queue.release_gl_texture(&cl_position);
-                }
-
-                // Display rt result
-                gl_viewport(app().graphics().dimensions());
-                {
-                    gl_clear();
-
-                    self.display_shader_program.bind(); {
-                        let t = &display_target;//render_target.get_texture(GLRenderAttachment::Color(0)).unwrap();
-                        t.bind(0);
-                        self.display_shader_program.set_sampler_slot(&String::from("tex"), 0);
-
-                        self.display_vao.bind(); {
-                            gl_draw_arrays(gl::TRIANGLES, 0, 6);
-                        } self.display_vao.unbind();
-                    } self.display_shader_program.unbind();
-                }
-
-                window.swap_buffers();
             }
 
             println!("EPOCHS: [{} / {}]", e, params.epochs);

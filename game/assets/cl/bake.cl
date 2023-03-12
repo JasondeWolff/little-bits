@@ -20,10 +20,14 @@ __kernel void render(write_only image2d_t out,
     __global NeuralNetwork* nn,
     __global float* in_weights,
     __global float* out_weights,
+    __global float* in_momentum,
+    __global float* out_momentum,
     __local float* cache, int cacheSize,
     __global MutliHashGridMeta* mhgMeta,
     __global float* in_mhgElems,
     __global float* out_mhgElems,
+    __global float* in_mhg_momentum,
+    __global float* out_mhg_momentum,
     __global AABB* aabb,
     __global float* loss,
     __global float* errors)
@@ -43,8 +47,10 @@ __kernel void render(write_only image2d_t out,
 
     // float learningRate = 3.0f;
     // float l2reg = 0.0000001;
-    float learningRate = 0.3f;
-    float l2reg = 0.0000001;
+    float learningRate = 0.01f;
+    float l2reg = 0.000001;
+    float momentumStrength = 0.25; // FIX MOMENTUM, look better at the adam paper
+    // AND MOST IMPORTANT, (HOW) DO THEY BATCH??
 
     // Allows a single printf per kernel
     bool oc = true;
@@ -52,16 +58,21 @@ __kernel void render(write_only image2d_t out,
     // Construct ray from camera
     Ray ray;
     {
-        const float3 E = camera->position.xyz;
-        const float3 llc = camera->lowerLeftCorner.xyz;
-        const float3 horizontal = camera->horizontal.xyz;
-        const float3 vertical = camera->vertical.xyz;
+        // const float3 E = camera->position.xyz;
+        // const float3 llc = camera->lowerLeftCorner.xyz;
+        // const float3 horizontal = camera->horizontal.xyz;
+        // const float3 vertical = camera->vertical.xyz;
 
-        float2 uv = (float2)(x, y) / (float2)(width, height);
-        uv.y = 1.0f - uv.y;
+        // float2 uv = (float2)(x, y) / (float2)(width, height);
+        // uv.y = 1.0f - uv.y;
 
-        ray.origin = E;
-        ray.direction = normalize(llc + uv.x * horizontal + uv.y * vertical - E);
+        // ray.origin = E;
+        // ray.direction = normalize(llc + uv.x * horizontal + uv.y * vertical - E);
+        // ray.invDirection = (float3)(1.0 / ray.direction.x, 1.0 / ray.direction.y, 1.0 / ray.direction.z);
+
+        // Can cheat because the hit position is already known, otherwise use code above
+        ray.origin = camera->position.xyz;
+        ray.direction = normalize(read_imagef(position_target, (int2)(x, y)).xyz - ray.origin);
         ray.invDirection = (float3)(1.0 / ray.direction.x, 1.0 / ray.direction.y, 1.0 / ray.direction.z);
     }
 
@@ -83,12 +94,14 @@ __kernel void render(write_only image2d_t out,
             return;
         }
 
-        // COORDINATES DONT MATCH UP WITH RASTERIZER!!!
         // float3 pc = read_imagef(position_target, (int2)(x, y)).xyz;
         // if (length(pc) > 0.01f)
         // {
         //     float3 p = ray.origin + ray.direction * t;
-        //     printf("True Hit: %f %f %f\nRay Hit: %f %f %f\n\n", pc.x, pc.y, pc.z, p.x, p.y, p.z);
+        //     if (distance(pc, p) > 0.05f)
+        //     {
+        //         printf("True Hit: %f %f %f\nRay Hit: %f %f %f\ndir: %f %f %f\norig: %f %f %f\nt: %f\n\n", pc.x, pc.y, pc.z, p.x, p.y, p.z, ray.direction.x, ray.direction.y, ray.direction.z, ray.origin.x, ray.origin.y, ray.origin.z, t);
+        //     }
         // }
     }
 
@@ -96,11 +109,14 @@ __kernel void render(write_only image2d_t out,
     {
         // Set neural network inputs
         {
+            float3 pos = -aabb->low + (ray.origin + ray.direction * t);
             for (int l = 0; l < mhgMeta->resolutionLayers; l++)
             {
-                float3 offset = -aabb->low;
-                float sampleValue = GetGridSampleValue(mhgMeta, in_mhgElems, l, 0, offset + (ray.origin + ray.direction * t), &oc);
-                cache[InputNeuron(nn, l, &oc)] = sampleValue;
+                for (int f = 0; f < mhgMeta->featuresPerEntry; f++)
+                {
+                    float sampleValue = GetGridSampleValue(mhgMeta, in_mhgElems, l, f, pos, &oc);
+                    cache[InputNeuron(nn, f + l * mhgMeta->featuresPerEntry, &oc)] = sampleValue;
+                }
             }
 
             // Give angle to learn mipmaps
@@ -116,15 +132,17 @@ __kernel void render(write_only image2d_t out,
         cache[TargetValue(nn, 1, &oc)] = target.y;
         cache[TargetValue(nn, 2, &oc)] = target.z;
 
-        Backpropagate(&oc, nn, in_weights, out_weights, cache, learningRate, l2reg, unit, loss);
+        Backpropagate(&oc, nn, in_weights, out_weights, in_momentum, out_momentum, momentumStrength, cache, learningRate, l2reg, unit, loss);
 
         // Backpropagate mhg
+        float3 pos = -aabb->low + (ray.origin + ray.direction * t);
         for (int l = 0; l < mhgMeta->resolutionLayers; l++)
         {
-            float3 pos = -aabb->low + (ray.origin + ray.direction * t);
-
-            float delta = learningRate * cache[InputNeuronDelta(nn, l, &oc)] * width * height;
-            AtomicAddGridSampleValue(mhgMeta, out_mhgElems, l, 0, pos, delta, &oc);
+            for (int f = 0; f < mhgMeta->featuresPerEntry; f++)
+            {
+                float delta = learningRate * cache[InputNeuronDelta(nn, f + l * mhgMeta->featuresPerEntry, &oc)] * width * height;
+                AtomicAddGridSampleValue(mhgMeta, out_mhgElems, l, f, pos, delta, &oc);
+            }
         }
 
         write_imagef(out, (int2)(x, y), (float4)(color, 1.0));

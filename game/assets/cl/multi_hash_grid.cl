@@ -170,14 +170,25 @@ float GetGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghEle
     float yresInv = resolution / (float)(mhg->height);
     float zresInv = resolution / (float)(mhg->depth);
 
-    int3 lbf = (int3)(floor(pos.x * xresInv), floor(pos.y * yresInv), floor(pos.z * zresInv));
-    int3 lbb = (int3)(floor(pos.x * xresInv), floor(pos.y * yresInv), inclceil(pos.z * zresInv));
-    int3 rbf = (int3)(inclceil(pos.x * xresInv), floor(pos.y * yresInv), floor(pos.z * zresInv));
-    int3 rbb = (int3)(inclceil(pos.x * xresInv), floor(pos.y * yresInv), inclceil(pos.z * zresInv));
-    int3 ltf = (int3)(floor(pos.x * xresInv), inclceil(pos.y * yresInv), floor(pos.z * zresInv));
-    int3 ltb = (int3)(floor(pos.x * xresInv), inclceil(pos.y * yresInv), inclceil(pos.z * zresInv));
-    int3 rtf = (int3)(inclceil(pos.x * xresInv), inclceil(pos.y * yresInv), floor(pos.z * zresInv));
-    int3 rtb = (int3)(inclceil(pos.x * xresInv), inclceil(pos.y * yresInv), inclceil(pos.z * zresInv));
+    int x0 = (int)(pos.x * xresInv);
+    int x1 = x0 + 1;
+    int y0 = (int)(pos.y * yresInv);
+    int y1 = y0 + 1;
+    int z0 = (int)(pos.z * zresInv);
+    int z1 = z0 + 1;
+
+    x1 = clamp(x1, x0, (int)(resolution));
+    y1 = clamp(y1, y0, (int)(resolution));
+    z1 = clamp(z1, z0, (int)(resolution));
+
+    int3 lbf = (int3)(x0, y0, z0);
+    int3 lbb = (int3)(x0, y0, z1);
+    int3 rbf = (int3)(x1, y0, z0);
+    int3 rbb = (int3)(x1, y0, z1);
+    int3 ltf = (int3)(x0, y1, z0);
+    int3 ltb = (int3)(x0, y1, z1);
+    int3 rtf = (int3)(x1, y1, z0);
+    int3 rtb = (int3)(x1, y1, z1);
 
     float lbfValue = mghElems[GridIndex(mhg, layer, feature, lbf, oc, resolution, xresInv, yresInv, zresInv, pos)];
     float lbbValue = mghElems[GridIndex(mhg, layer, feature, lbb, oc, resolution, xresInv, yresInv, zresInv, pos)];
@@ -230,18 +241,29 @@ void SetGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghElem
 #endif
 
     float resolution = Resolution(mhg, layer);
-    float xresInv = resolution / (float)(mhg->width);
-    float yresInv = resolution / (float)(mhg->height);
-    float zresInv = resolution / (float)(mhg->depth);
+    float xresInv = (resolution - 1) / (float)(mhg->width);
+    float yresInv = (resolution - 1) / (float)(mhg->height);
+    float zresInv = (resolution - 1) / (float)(mhg->depth);
 
-    int3 lbf = (int3)(floor(pos.x * xresInv), floor(pos.y * yresInv), floor(pos.z * zresInv));
-    int3 lbb = (int3)(floor(pos.x * xresInv), floor(pos.y * yresInv), ceil(pos.z * zresInv));
-    int3 rbf = (int3)(ceil(pos.x * xresInv), floor(pos.y * yresInv), floor(pos.z * zresInv));
-    int3 rbb = (int3)(ceil(pos.x * xresInv), floor(pos.y * yresInv), ceil(pos.z * zresInv));
-    int3 ltf = (int3)(floor(pos.x * xresInv), ceil(pos.y * yresInv), floor(pos.z * zresInv));
-    int3 ltb = (int3)(floor(pos.x * xresInv), ceil(pos.y * yresInv), ceil(pos.z * zresInv));
-    int3 rtf = (int3)(ceil(pos.x * xresInv), ceil(pos.y * yresInv), floor(pos.z * zresInv));
-    int3 rtb = (int3)(ceil(pos.x * xresInv), ceil(pos.y * yresInv), ceil(pos.z * zresInv));
+    int x0 = (int)(pos.x * xresInv);
+    int x1 = x0 + 1;
+    int y0 = (int)(pos.y * yresInv);
+    int y1 = y0 + 1;
+    int z0 = (int)(pos.z * zresInv);
+    int z1 = z0 + 1;
+
+    x1 = clamp(x1, x0, (int)(resolution));
+    y1 = clamp(y1, y0, (int)(resolution));
+    z1 = clamp(z1, z0, (int)(resolution));
+
+    int3 lbf = (int3)(x0, y0, z0);
+    int3 lbb = (int3)(x0, y0, z1);
+    int3 rbf = (int3)(x1, y0, z0);
+    int3 rbb = (int3)(x1, y0, z1);
+    int3 ltf = (int3)(x0, y1, z0);
+    int3 ltb = (int3)(x0, y1, z1);
+    int3 rtf = (int3)(x1, y1, z0);
+    int3 rtb = (int3)(x1, y1, z1);
 
     float xaxis = ceil(pos.x) - pos.x;
     float yaxis = ceil(pos.y) - pos.y;
@@ -295,14 +317,25 @@ void AtomicAddGridSampleValue(__global MutliHashGridMeta* mhg, __global float* m
     float yresInv = resolution / (float)(mhg->height);
     float zresInv = resolution / (float)(mhg->depth);
 
-    int3 lbf = (int3)(floor(pos.x * xresInv), floor(pos.y * yresInv), floor(pos.z * zresInv));
-    int3 lbb = (int3)(floor(pos.x * xresInv), floor(pos.y * yresInv), inclceil(pos.z * zresInv));
-    int3 rbf = (int3)(inclceil(pos.x * xresInv), floor(pos.y * yresInv), floor(pos.z * zresInv));
-    int3 rbb = (int3)(inclceil(pos.x * xresInv), floor(pos.y * yresInv), inclceil(pos.z * zresInv));
-    int3 ltf = (int3)(floor(pos.x * xresInv), inclceil(pos.y * yresInv), floor(pos.z * zresInv));
-    int3 ltb = (int3)(floor(pos.x * xresInv), inclceil(pos.y * yresInv), inclceil(pos.z * zresInv));
-    int3 rtf = (int3)(inclceil(pos.x * xresInv), inclceil(pos.y * yresInv), floor(pos.z * zresInv));
-    int3 rtb = (int3)(inclceil(pos.x * xresInv), inclceil(pos.y * yresInv), inclceil(pos.z * zresInv));
+    int x0 = (int)(pos.x * xresInv);
+    int x1 = x0 + 1;
+    int y0 = (int)(pos.y * yresInv);
+    int y1 = y0 + 1;
+    int z0 = (int)(pos.z * zresInv);
+    int z1 = z0 + 1;
+
+    x1 = clamp(x1, x0, (int)(resolution));
+    y1 = clamp(y1, y0, (int)(resolution));
+    z1 = clamp(z1, z0, (int)(resolution));
+
+    int3 lbf = (int3)(x0, y0, z0);
+    int3 lbb = (int3)(x0, y0, z1);
+    int3 rbf = (int3)(x1, y0, z0);
+    int3 rbb = (int3)(x1, y0, z1);
+    int3 ltf = (int3)(x0, y1, z0);
+    int3 ltb = (int3)(x0, y1, z1);
+    int3 rtf = (int3)(x1, y1, z0);
+    int3 rtb = (int3)(x1, y1, z1);
 
     float xaxis = ceil(pos.x) - pos.x;
     float yaxis = ceil(pos.y) - pos.y;

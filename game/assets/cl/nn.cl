@@ -366,7 +366,7 @@ void Forward(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, _
     }
 }
 
-void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, __global float* out_weights, __local float* cache, float learningRate, float avgFactor, float L2reg, __global float* loss)
+void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, __global float* out_weights, __global float* in_momentum, __global float* out_momentum, float momentumStrength, __local float* cache, float learningRate, float avgFactor, float L2reg, __global float* loss)
 {
     // Calculate L2 penalty
     float weightSum = 0.0f;
@@ -445,6 +445,9 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
                 delta = clamp(delta, -0.5f, 0.5f);
 #endif
 
+                AtomicAddFloat(&out_momentum[HiddenOutputNeuronWeight(nn, i, j, oc)], delta);
+                delta += in_momentum[HiddenOutputNeuronWeight(nn, i, j, oc)] * momentumStrength;
+
                 AtomicAddFloat(&out_weights[HiddenOutputNeuronWeight(nn, i, j, oc)], delta);
             }
         }
@@ -461,6 +464,9 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
                     delta = clamp(delta, -0.5f, 0.5f);
 #endif
 
+                    AtomicAddFloat(&out_momentum[HiddenHiddenNeuronWeight(nn, i, j, l, oc)], delta);
+                    delta += in_momentum[HiddenHiddenNeuronWeight(nn, i, j, l, oc)] * momentumStrength;
+
                     AtomicAddFloat(&out_weights[HiddenHiddenNeuronWeight(nn, i, j, l, oc)], delta);
                 }
             }
@@ -475,6 +481,9 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
 #ifdef CLAMP_DELTAS
                 delta = clamp(delta, -0.5f, 0.5f);
 #endif
+
+                AtomicAddFloat(&out_momentum[InputHiddenNeuronWeight(nn, i, j, oc)], delta);
+                delta += in_momentum[InputHiddenNeuronWeight(nn, i, j, oc)] * momentumStrength;
 
                 AtomicAddFloat(&out_weights[InputHiddenNeuronWeight(nn, i, j, oc)], delta);
             }
