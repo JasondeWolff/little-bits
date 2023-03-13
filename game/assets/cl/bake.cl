@@ -33,12 +33,6 @@ __kernel void render(write_only image2d_t out,
     __global float* loss,
     __global float* errors)
 {
-    // Zero cache
-    // for (int i = 0; i < cacheSize; i++)
-    // {
-    //     cache[i] = 0.0;
-    // }
-
     // Get kernel info
     const size_t x = get_global_id(0);
 	const size_t y = get_global_id(1);
@@ -46,7 +40,7 @@ __kernel void render(write_only image2d_t out,
 	const size_t height = get_global_size(1);
     const float unit = 1.0f / (width * height);
 
-    float learningRate = 0.03f * 0.25f;
+    float learningRate = 0.01f;
     float l2reg = 0.000001f;
     float beta1 = 0.9f;
     float beta2 = 0.999f;
@@ -116,7 +110,7 @@ __kernel void render(write_only image2d_t out,
             {
                 for (int f = 0; f < mhgMeta->featuresPerEntry; f++)
                 {
-                    float sampleValue = GetGridSampleValue(mhgMeta, in_mhgElems, l, f, pos, &oc);
+                    float sampleValue = GetGridSampleValue(mhgMeta, in_mhgElems, l, f, pos, &oc, 0);
                     cache[InputNeuron(nn, f + l * mhgMeta->featuresPerEntry, &oc)] = sampleValue;
                 }
             }
@@ -142,8 +136,29 @@ __kernel void render(write_only image2d_t out,
         {
             for (int f = 0; f < mhgMeta->featuresPerEntry; f++)
             {
-                float delta = learningRate * cache[InputNeuronDelta(nn, f + l * mhgMeta->featuresPerEntry, &oc)] * width * height;
-                AtomicAddGridSampleValue(mhgMeta, out_mhgElems, l, f, pos, delta, &oc);
+                int weightsSize = nn->inputCount * nn->hiddenCount + nn->hiddenCount * nn->hiddenCount * (nn->hiddenLayerCount - 1) + nn->hiddenCount * nn->outputCount;
+                int mhgSize = mhgMeta->resolutionLayers * mhgMeta->featuresPerEntry * mhgMeta->maxEntries;
+
+                float delta = learningRate * cache[InputNeuronDelta(nn, f + l * mhgMeta->featuresPerEntry, &oc)];
+
+                // float oldMomentumV = GetGridSampleValue(mhgMeta, in_momentum, l, f, pos, &oc, weightsSize * 2);
+                // float momentumV = beta1 * oldMomentumV + (1.0f - beta1) * delta;
+                // // if (oc)
+                // // {
+                // //     printf("mv = %f\n d = %f\n\n", momentumV, delta);
+                // //     oc = false;
+                // // }
+                // AtomicAddGridSampleValue(mhgMeta, out_momentum, l, f, pos, -GetGridSampleValue(mhgMeta, out_momentum, l, f, pos, &oc, weightsSize * 2) + momentumV, &oc, weightsSize * 2);
+
+                // float oldMomentumM = GetGridSampleValue(mhgMeta, in_momentum, l, f, pos, &oc, weightsSize * 2 + mhgSize);
+                // float momentumM = beta2 * oldMomentumM + (1.0f - beta2) * (delta * delta);
+                // AtomicAddGridSampleValue(mhgMeta, out_momentum, l, f, pos, -GetGridSampleValue(mhgMeta, out_momentum, l, f, pos, &oc, weightsSize * 2 + mhgSize) + momentumM, &oc, weightsSize * 2 + mhgSize);
+
+                // momentumM = momentumM / (1.0f - beta1);
+                // momentumV = momentumV / (1.0f - beta2);
+
+                // delta = momentumM * (learningRate / (float)sqrt((double)(momentumV) + epsilon));
+                AtomicAddGridSampleValue(mhgMeta, out_mhgElems, l, f, pos, delta, &oc, 0);
             }
         }
 

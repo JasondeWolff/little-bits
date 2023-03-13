@@ -362,7 +362,7 @@ void Forward(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, _
         activation += in_weights[OutputNeuronBias(nn, i, oc)];
 #endif
 
-        cache[OutputNeuron(nn, i, oc)] = activation;//Activation(activation);
+        cache[OutputNeuron(nn, i, oc)] = activation;
     }
 }
 
@@ -419,7 +419,7 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
             float outputNeuron = cache[OutputNeuron(nn, i, oc)];
             float error = cache[TargetValue(nn, i, oc)] - outputNeuron;
             error -= weightSum;
-            cache[OutputNeuronDelta(nn, i, oc)] = error * /*DevActivation(outputNeuron) */ avgFactor;
+            cache[OutputNeuronDelta(nn, i, oc)] = error;
 
             // Store loss
             AtomicAddFloat(&loss[0], error * error);
@@ -463,7 +463,7 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
         }
     }
 
-    // Update weights + biases
+    // Update weights
     {
         // Hidden <- Output
         for (int i = 0; i < nn->hiddenCount; i++)
@@ -473,7 +473,7 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
                 float delta = cache[OutputNeuronDelta(nn, j, oc)] * cache[HiddenNeuron(nn, i, nn->hiddenLayerCount - 1, oc)];
     	        AddMomentum(delta, HiddenOutputNeuronWeight(nn, i, j, oc), in_momentum, out_momentum, beta1, beta2, epsilon, learningRate);
 
-                AtomicAddFloat(&out_weights[HiddenOutputNeuronWeight(nn, i, j, oc)], delta);
+                AtomicAddFloat(&out_weights[HiddenOutputNeuronWeight(nn, i, j, oc)], delta * avgFactor);
             }
         }
 
@@ -487,7 +487,7 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
                     float delta = cache[HiddenNeuronDelta(nn, j, l + 1, oc)] * cache[HiddenNeuron(nn, i, l, oc)];
                     AddMomentum(delta, HiddenHiddenNeuronWeight(nn, i, j, l, oc), in_momentum, out_momentum, beta1, beta2, epsilon, learningRate);
 
-                    AtomicAddFloat(&out_weights[HiddenHiddenNeuronWeight(nn, i, j, l, oc)], delta);
+                    AtomicAddFloat(&out_weights[HiddenHiddenNeuronWeight(nn, i, j, l, oc)], delta * avgFactor);
                 }
             }
         }
@@ -500,7 +500,7 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
                 float delta = cache[HiddenNeuronDelta(nn, j, 0, oc)] * cache[InputNeuron(nn, i, oc)];
                 AddMomentum(delta, InputHiddenNeuronWeight(nn, i, j, oc), in_momentum, out_momentum, beta1, beta2, epsilon, learningRate);
 
-                AtomicAddFloat(&out_weights[InputHiddenNeuronWeight(nn, i, j, oc)], delta);
+                AtomicAddFloat(&out_weights[InputHiddenNeuronWeight(nn, i, j, oc)], delta * avgFactor);
             }
         }
     }

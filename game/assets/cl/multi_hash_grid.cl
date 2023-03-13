@@ -24,14 +24,14 @@ inline float Resolution(__global MutliHashGridMeta* mhg, int layer)
         return mhg->minResolution;
     }
 
-    return (float)(mhg->minResolution) * exp((ln((float)(mhg->maxResolution)) - ln((float)(mhg->minResolution))) / ((float)(layer + 1)));
-    //return floor(lerp((float)(mhg->minResolution), (float)(mhg->maxResolution), (float)(layer) / (float)(mhg->resolutionLayers - 1)));
+    return round((float)(mhg->minResolution) * exp((ln((float)(mhg->maxResolution)) - ln((float)(mhg->minResolution))) / ((float)(layer + 1))));
 }
 
 // Source: https://www.researchgate.net/publication/2909661_Optimized_Spatial_Hashing_for_Collision_Detection_of_Deformable_Objects
-inline int SpatialHash(int3 pos, int T)
+inline uint SpatialHash(int3 pos, int T)
 {
-    return abs((pos.x * 73856093) ^ (pos.y * 19349663) ^ (pos.z * 83492791)) % T; // Maybe use unsigned instead of abs?
+    return (((uint)(pos.x) * 73856093) ^ ((uint)(pos.y) * 19349663) ^ ((uint)(pos.z) * 83492791)) % (uint)(T);
+    //return (((uint)(pos.x) * 1) ^ ((uint)(pos.y) * 2654435761) ^ ((uint)(pos.z) * 805459861)) % (uint)(T);
 }
 
 int GridIndex(__global MutliHashGridMeta* mhg, int layer, int feature, int3 pos, bool* oc, float res, float invx, float invy, float invz, float3 pp)
@@ -139,7 +139,7 @@ inline float inclceil(float x)
     return floor(x + 1.0f);
 }
 
-float GetGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghElems, int layer, int feature, float3 pos, bool* oc)
+float GetGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghElems, int layer, int feature, float3 pos, bool* oc, int offset)
 {
 #ifdef DEBUG_MODE
     if ((int)(pos.x) < 0 || (int)(pos.x) >= mhg->width || (int)(pos.y) < 0 || (int)(pos.y) >= mhg->height || (int)(pos.z) < 0 || (int)(pos.z) >= mhg->depth)
@@ -190,14 +190,14 @@ float GetGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghEle
     int3 rtf = (int3)(x1, y1, z0);
     int3 rtb = (int3)(x1, y1, z1);
 
-    float lbfValue = mghElems[GridIndex(mhg, layer, feature, lbf, oc, resolution, xresInv, yresInv, zresInv, pos)];
-    float lbbValue = mghElems[GridIndex(mhg, layer, feature, lbb, oc, resolution, xresInv, yresInv, zresInv, pos)];
-    float rbfValue = mghElems[GridIndex(mhg, layer, feature, rbf, oc, resolution, xresInv, yresInv, zresInv, pos)];
-    float rbbValue = mghElems[GridIndex(mhg, layer, feature, rbb, oc, resolution, xresInv, yresInv, zresInv, pos)];
-    float ltfValue = mghElems[GridIndex(mhg, layer, feature, ltf, oc, resolution, xresInv, yresInv, zresInv, pos)];
-    float ltbValue = mghElems[GridIndex(mhg, layer, feature, ltb, oc, resolution, xresInv, yresInv, zresInv, pos)];
-    float rtfValue = mghElems[GridIndex(mhg, layer, feature, rtf, oc, resolution, xresInv, yresInv, zresInv, pos)];
-    float rtbValue = mghElems[GridIndex(mhg, layer, feature, rtb, oc, resolution, xresInv, yresInv, zresInv, pos)];
+    float lbfValue = mghElems[GridIndex(mhg, layer, feature, lbf, oc, resolution, xresInv, yresInv, zresInv, pos) + offset];
+    float lbbValue = mghElems[GridIndex(mhg, layer, feature, lbb, oc, resolution, xresInv, yresInv, zresInv, pos) + offset];
+    float rbfValue = mghElems[GridIndex(mhg, layer, feature, rbf, oc, resolution, xresInv, yresInv, zresInv, pos) + offset];
+    float rbbValue = mghElems[GridIndex(mhg, layer, feature, rbb, oc, resolution, xresInv, yresInv, zresInv, pos) + offset];
+    float ltfValue = mghElems[GridIndex(mhg, layer, feature, ltf, oc, resolution, xresInv, yresInv, zresInv, pos) + offset];
+    float ltbValue = mghElems[GridIndex(mhg, layer, feature, ltb, oc, resolution, xresInv, yresInv, zresInv, pos) + offset];
+    float rtfValue = mghElems[GridIndex(mhg, layer, feature, rtf, oc, resolution, xresInv, yresInv, zresInv, pos) + offset];
+    float rtbValue = mghElems[GridIndex(mhg, layer, feature, rtb, oc, resolution, xresInv, yresInv, zresInv, pos) + offset];
 
     float xaxis = ceil(pos.x) - pos.x;
     float yaxis = ceil(pos.y) - pos.y;
@@ -241,9 +241,9 @@ void SetGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghElem
 #endif
 
     float resolution = Resolution(mhg, layer);
-    float xresInv = (resolution - 1) / (float)(mhg->width);
-    float yresInv = (resolution - 1) / (float)(mhg->height);
-    float zresInv = (resolution - 1) / (float)(mhg->depth);
+    float xresInv = resolution / (float)(mhg->width);
+    float yresInv = resolution / (float)(mhg->height);
+    float zresInv = resolution / (float)(mhg->depth);
 
     int x0 = (int)(pos.x * xresInv);
     int x1 = x0 + 1;
@@ -286,7 +286,7 @@ void SetGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghElem
     mghElems[GridIndex(mhg, layer, feature, rtb, oc, resolution, xresInv, yresInv, zresInv, pos)] = rtValue * zaxis;
 }
 
-void AtomicAddGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghElems, int layer, int feature, float3 pos, float value, bool* oc)
+void AtomicAddGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghElems, int layer, int feature, float3 pos, float value, bool* oc, int offset)
 {
 #ifdef DEBUG_MODE
     if ((int)(pos.x) < 0 || (int)(pos.x) >= mhg->width || (int)(pos.y) < 0 || (int)(pos.y) >= mhg->height || (int)(pos.z) < 0 || (int)(pos.z) >= mhg->depth)
@@ -348,12 +348,12 @@ void AtomicAddGridSampleValue(__global MutliHashGridMeta* mhg, __global float* m
     float rbValue = rValue * (1.0 - yaxis);
     float rtValue = rValue * yaxis;
     
-    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, lbf, oc, resolution, xresInv, yresInv, zresInv, pos)], lbValue * (1.0 - zaxis));
-    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, lbb, oc, resolution, xresInv, yresInv, zresInv, pos)], lbValue * zaxis);
-    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, rbf, oc, resolution, xresInv, yresInv, zresInv, pos)], rbValue * (1.0 - zaxis));
-    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, rbb, oc, resolution, xresInv, yresInv, zresInv, pos)], rbValue * zaxis);
-    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, ltf, oc, resolution, xresInv, yresInv, zresInv, pos)], ltValue * (1.0 - zaxis));
-    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, ltb, oc, resolution, xresInv, yresInv, zresInv, pos)], ltValue * zaxis);
-    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, rtf, oc, resolution, xresInv, yresInv, zresInv, pos)], rtValue * (1.0 - zaxis));
-    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, rtb, oc, resolution, xresInv, yresInv, zresInv, pos)], rtValue * zaxis);
+    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, lbf, oc, resolution, xresInv, yresInv, zresInv, pos) + offset], lbValue * (1.0 - zaxis));
+    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, lbb, oc, resolution, xresInv, yresInv, zresInv, pos) + offset], lbValue * zaxis);
+    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, rbf, oc, resolution, xresInv, yresInv, zresInv, pos) + offset], rbValue * (1.0 - zaxis));
+    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, rbb, oc, resolution, xresInv, yresInv, zresInv, pos) + offset], rbValue * zaxis);
+    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, ltf, oc, resolution, xresInv, yresInv, zresInv, pos) + offset], ltValue * (1.0 - zaxis));
+    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, ltb, oc, resolution, xresInv, yresInv, zresInv, pos) + offset], ltValue * zaxis);
+    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, rtf, oc, resolution, xresInv, yresInv, zresInv, pos) + offset], rtValue * (1.0 - zaxis));
+    AtomicAddFloat(&mghElems[GridIndex(mhg, layer, feature, rtb, oc, resolution, xresInv, yresInv, zresInv, pos) + offset], rtValue * zaxis);
 }

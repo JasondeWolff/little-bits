@@ -123,7 +123,7 @@ fn weight_init(rng: &mut rand::ThreadRng, nj: i32, nj1: i32) -> f32 {
 
 impl NeuralNetwork {
     fn new(input_count: i32, hidden_count: i32, output_count: i32, hidden_layer_count: i32) -> Self {
-        let weight_count = input_count * hidden_count + hidden_count * hidden_count * hidden_layer_count + hidden_count * output_count;
+        let weight_count = input_count * hidden_count + hidden_count * hidden_count * (hidden_layer_count - 1) + hidden_count * output_count;
         let bias_count = hidden_count * hidden_layer_count + output_count;
         let mut weights = Vec::with_capacity((weight_count + bias_count) as usize);
 
@@ -223,7 +223,7 @@ impl Default for BakeParameters {
             epochs: 10000,
             sample_positions: 300,
             sample_distribution: BakeSampleDistribution::Random,
-            sample_resolution: 1024
+            sample_resolution: 720
         }
     }
 }
@@ -354,7 +354,7 @@ impl Baker {
 
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
-        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(19), 2, 16, 512*16, size);
+        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(24), 2, 16, 200, size);
 
         let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32, 64, 3, 2);
         println!("Using {}B per kernel", neural_network.required_cache_size());
@@ -363,8 +363,8 @@ impl Baker {
         let cl_in_weights = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<f32>() * neural_network.weights.len());
         let cl_out_weights = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>() * neural_network.weights.len());
 
-        let cl_in_momentum = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<f32>() * neural_network.weights.len() * 2);
-        let cl_out_momentum = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>() * neural_network.weights.len() * 2);
+        let cl_in_momentum = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<f32>() * (neural_network.weights.len() * 2));
+        let cl_out_momentum = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>() * (neural_network.weights.len() * 2));
         let mut momentum = vec![0.0f32; neural_network.weights.len() * 2];
 
         let cl_aabb = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<AABB>());
