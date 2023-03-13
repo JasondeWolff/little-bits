@@ -396,19 +396,19 @@ float AddMomentum(float delta, int idx, __global float* in_momentum, __global fl
     return delta;
 }
 
-void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, __global float* out_weights, __global float* in_momentum, __global float* out_momentum, float beta1, float beta2, double epsilon, __local float* cache, float learningRate, float avgFactor, float L2reg, __global float* loss)
+void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, __global float* out_weights, __global float* in_momentum, __global float* out_momentum, float beta1, float beta2, double epsilon, __local float* cache, float learningRate, float avgFactor, float L2reg, __global float* globalLoss)
 {
     // Calculate L2 penalty
     float weightSum = 0.0f;
+    float weightSumDerivative = 0.0f;
     {
         int weightsSize = nn->inputCount * nn->hiddenCount + nn->hiddenCount * nn->hiddenCount * (nn->hiddenLayerCount - 1) + nn->hiddenCount * nn->outputCount;
         for (int i = 0; i < weightsSize; i++)
         {
             float weight = in_weights[i];
             weightSum += weight * weight;
+            weightSumDerivative += weight;
         }
-
-        weightSum *= L2reg;
     }
 
     // Calculate deltas
@@ -417,12 +417,12 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
         for (int i = 0; i < nn->outputCount; i++)
         {
             float outputNeuron = cache[OutputNeuron(nn, i, oc)];
-            float error = cache[TargetValue(nn, i, oc)] - outputNeuron;
-            error -= weightSum;
-            cache[OutputNeuronDelta(nn, i, oc)] = error;
 
-            // Store loss
-            AtomicAddFloat(&loss[0], error * error);
+            float loss = (cache[TargetValue(nn, i, oc)] - outputNeuron) * (cache[TargetValue(nn, i, oc)] - outputNeuron) + L2reg * weightSum;
+            float derivativeLoss = 2.0f * (cache[TargetValue(nn, i, oc)] - outputNeuron) + 2.0f * L2reg * weightSumDerivative;
+
+            cache[OutputNeuronDelta(nn, i, oc)] = derivativeLoss;
+            AtomicAddFloat(&globalLoss[0], loss);
         }
 
         // Hidden deltas
@@ -442,7 +442,7 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
                 {
                     for (int j = 0; j < nn->hiddenCount; j++)
                     {
-                         error += in_weights[HiddenHiddenNeuronWeight(nn, i, j, l, oc)] * cache[HiddenNeuronDelta(nn, j, l + 1, oc)];
+                        error += in_weights[HiddenHiddenNeuronWeight(nn, i, j, l, oc)] * cache[HiddenNeuronDelta(nn, j, l + 1, oc)];
                     }
                 }
 

@@ -45,8 +45,8 @@ __kernel void render(write_only image2d_t out,
     float beta1 = 0.9f;
     float beta2 = 0.999f;
     //double epsilon = 0.0001f;
-    //double epsilon = 0.00000001f;
-    double epsilon = 0.000000000000001f;
+    double epsilon = 0.00000001f;
+    //double epsilon = 0.000000000000001f;
 
     // Allows a single printf per kernel
     bool oc = true;
@@ -128,7 +128,7 @@ __kernel void render(write_only image2d_t out,
         cache[TargetValue(nn, 1, &oc)] = target.y;
         cache[TargetValue(nn, 2, &oc)] = target.z;
 
-        Backpropagate(&oc, nn, in_weights, out_weights, in_momentum, out_momentum, beta1, beta2, epsilon, cache, learningRate, l2reg, unit, loss);
+        Backpropagate(&oc, nn, in_weights, out_weights, in_momentum, out_momentum, beta1, beta2, epsilon, cache, learningRate, unit, l2reg, loss);
 
         // Backpropagate mhg
         float3 pos = -aabb->low + (ray.origin + ray.direction * t);
