@@ -4,6 +4,8 @@
 //#define RMSP
 #define ADAM
 
+#define MSE
+
 //#define USE_BIASES
 
 //#define DEBUG_MODE
@@ -45,8 +47,8 @@ __kernel void render(write_only image2d_t out,
     float beta1 = 0.9f;
     float beta2 = 0.999f;
     //double epsilon = 0.0001f;
-    double epsilon = 0.00000001f;
-    //double epsilon = 0.000000000000001f;
+    //double epsilon = 0.00000001f;
+    double epsilon = 0.000000000000001f;
 
     // Allows a single printf per kernel
     bool oc = true;
@@ -139,7 +141,7 @@ __kernel void render(write_only image2d_t out,
                 int weightsSize = nn->inputCount * nn->hiddenCount + nn->hiddenCount * nn->hiddenCount * (nn->hiddenLayerCount - 1) + nn->hiddenCount * nn->outputCount;
                 int mhgSize = mhgMeta->resolutionLayers * mhgMeta->featuresPerEntry * mhgMeta->maxEntries;
 
-                float delta = learningRate * cache[InputNeuronDelta(nn, f + l * mhgMeta->featuresPerEntry, &oc)];
+                float delta = learningRate * cache[InputNeuronDelta(nn, f + l * mhgMeta->featuresPerEntry, &oc)] * width * height;
 
                 // float oldMomentumV = GetGridSampleValue(mhgMeta, in_momentum, l, f, pos, &oc, weightsSize * 2);
                 // float momentumV = beta1 * oldMomentumV + (1.0f - beta1) * delta;

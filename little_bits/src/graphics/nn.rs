@@ -223,7 +223,7 @@ impl Default for BakeParameters {
             epochs: 10000,
             sample_positions: 300,
             sample_distribution: BakeSampleDistribution::Random,
-            sample_resolution: 720
+            sample_resolution: 512
         }
     }
 }
@@ -354,7 +354,7 @@ impl Baker {
 
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
-        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(24), 2, 32, 200, size);
+        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(19), 2, 16, 512*16, size);
 
         let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32, 64, 3, 2);
         println!("Using {}B per kernel", neural_network.required_cache_size());
