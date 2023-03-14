@@ -371,16 +371,11 @@ impl Baker {
         let cl_loss = CLBuffer::new(&self.context, CLBufferMode::Write, std::mem::size_of::<f32>());
         let cl_errors = CLBuffer::new(&self.context, CLBufferMode::ReadWrite, std::mem::size_of::<f32>() * (multi_hash_grid.required_nn_inputs() + 1));
 
-        let mut iters_per_point = 10.0f32;
-
         let mut timer = Timer::new();
 
         for e in 0..params.epochs {
             for camera_point in &camera_points {
                 for ci in 0..2 {
-                    iters_per_point -= 0.01;
-                    if iters_per_point < 1.0f32 { iters_per_point = 1.0f32; }
-
                     glfw.poll_events();
 
                     // Render inputs to rt's

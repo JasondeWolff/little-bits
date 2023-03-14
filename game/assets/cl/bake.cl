@@ -1,5 +1,6 @@
 #pragma OPENCL EXTENSION cl_intel_printf : enable
 
+#define MOMENTUM
 //#define ADA_GRAD
 //#define RMSP
 #define ADAM
@@ -46,7 +47,6 @@ __kernel void render(write_only image2d_t out,
     float l2reg = 0.000001f;
     float beta1 = 0.9f;
     float beta2 = 0.999f;
-    //double epsilon = 0.0001f;
     //double epsilon = 0.00000001f;
     double epsilon = 0.000000000000001f;
 
@@ -105,9 +105,10 @@ __kernel void render(write_only image2d_t out,
 
     if (PointAABBIntersection(ray.origin + ray.direction * t, aabb))
     {
+        float3 pos = -aabb->low + (ray.origin + ray.direction * t);
+
         // Set neural network inputs
         {
-            float3 pos = -aabb->low + (ray.origin + ray.direction * t);
             for (int l = 0; l < mhgMeta->resolutionLayers; l++)
             {
                 for (int f = 0; f < mhgMeta->featuresPerEntry; f++)
@@ -126,6 +127,7 @@ __kernel void render(write_only image2d_t out,
 
         // Calculate errors
         float4 target = read_imagef(base_color_target, (int2)(x, y));
+
         cache[TargetValue(nn, 0, &oc)] = target.x;
         cache[TargetValue(nn, 1, &oc)] = target.y;
         cache[TargetValue(nn, 2, &oc)] = target.z;
@@ -133,15 +135,12 @@ __kernel void render(write_only image2d_t out,
         Backpropagate(&oc, nn, in_weights, out_weights, in_momentum, out_momentum, beta1, beta2, epsilon, cache, learningRate, unit, l2reg, loss);
 
         // Backpropagate mhg
-        float3 pos = -aabb->low + (ray.origin + ray.direction * t);
         for (int l = 0; l < mhgMeta->resolutionLayers; l++)
         {
             for (int f = 0; f < mhgMeta->featuresPerEntry; f++)
             {
-                int weightsSize = nn->inputCount * nn->hiddenCount + nn->hiddenCount * nn->hiddenCount * (nn->hiddenLayerCount - 1) + nn->hiddenCount * nn->outputCount;
-                int mhgSize = mhgMeta->resolutionLayers * mhgMeta->featuresPerEntry * mhgMeta->maxEntries;
-
-                float delta = learningRate * cache[InputNeuronDelta(nn, f + l * mhgMeta->featuresPerEntry, &oc)] * width * height;
+                // int weightsSize = nn->inputCount * nn->hiddenCount + nn->hiddenCount * nn->hiddenCount * (nn->hiddenLayerCount - 1) + nn->hiddenCount * nn->outputCount;
+                // int mhgSize = mhgMeta->resolutionLayers * mhgMeta->featuresPerEntry * mhgMeta->maxEntries;
 
                 // float oldMomentumV = GetGridSampleValue(mhgMeta, in_momentum, l, f, pos, &oc, weightsSize * 2);
                 // float momentumV = beta1 * oldMomentumV + (1.0f - beta1) * delta;
@@ -160,6 +159,8 @@ __kernel void render(write_only image2d_t out,
                 // momentumV = momentumV / (1.0f - beta2);
 
                 // delta = momentumM * (learningRate / (float)sqrt((double)(momentumV) + epsilon));
+
+                float delta = learningRate * cache[InputNeuronDelta(nn, f + l * mhgMeta->featuresPerEntry, &oc)] * width * height;
                 AtomicAddGridSampleValue(mhgMeta, out_mhgElems, l, f, pos, delta, &oc, 0);
             }
         }

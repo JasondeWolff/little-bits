@@ -199,9 +199,9 @@ float GetGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghEle
     float rtfValue = mghElems[GridIndex(mhg, layer, feature, rtf, oc, resolution, xresInv, yresInv, zresInv, pos) + offset];
     float rtbValue = mghElems[GridIndex(mhg, layer, feature, rtb, oc, resolution, xresInv, yresInv, zresInv, pos) + offset];
 
-    float xaxis = ceil(pos.x) - pos.x;
-    float yaxis = ceil(pos.y) - pos.y;
-    float zaxis = ceil(pos.z) - pos.z;
+    float xaxis = fmod(pos.x, xresInv) / xresInv;
+    float yaxis = fmod(pos.y, yresInv) / yresInv;
+    float zaxis = fmod(pos.z, zresInv) / zresInv;
 
     float lbValue = lerp(lbfValue, lbbValue, zaxis);
     float rbValue = lerp(rbfValue, lbbValue, zaxis);
@@ -265,9 +265,9 @@ void SetGridSampleValue(__global MutliHashGridMeta* mhg, __global float* mghElem
     int3 rtf = (int3)(x1, y1, z0);
     int3 rtb = (int3)(x1, y1, z1);
 
-    float xaxis = ceil(pos.x) - pos.x;
-    float yaxis = ceil(pos.y) - pos.y;
-    float zaxis = ceil(pos.z) - pos.z;
+    float xaxis = fmod(pos.x, xresInv) / xresInv;
+    float yaxis = fmod(pos.y, yresInv) / yresInv;
+    float zaxis = fmod(pos.z, zresInv) / zresInv;
 
     float lValue = value * (1.0 - xaxis);
     float rValue = value * xaxis;
@@ -337,9 +337,9 @@ void AtomicAddGridSampleValue(__global MutliHashGridMeta* mhg, __global float* m
     int3 rtf = (int3)(x1, y1, z0);
     int3 rtb = (int3)(x1, y1, z1);
 
-    float xaxis = ceil(pos.x) - pos.x;
-    float yaxis = ceil(pos.y) - pos.y;
-    float zaxis = ceil(pos.z) - pos.z;
+    float xaxis = fmod(pos.x, xresInv) / xresInv;
+    float yaxis = fmod(pos.y, yresInv) / yresInv;
+    float zaxis = fmod(pos.z, zresInv) / zresInv;
 
     float lValue = value * (1.0 - xaxis);
     float rValue = value * xaxis;
