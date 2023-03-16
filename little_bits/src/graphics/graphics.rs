@@ -11,25 +11,6 @@ use std::mem;
 use std::sync::mpsc::Receiver;
 use std::collections::HashMap;
 
-/*
-Setup:
- - ImGui
- - Scene Graph
- - Materials
-
-Neural Mesh:
- - Neural network compute shader
- - Back propagation
- - Serialize and deserialize result
-
- Triangle Mesh Preview:
- - PBR Shading
- - Basic phong lights
-
- Multiple Neural Meshes:
-  - BVH builder and traversal
-*/
-
 pub extern crate imgui;
 
 extern crate gl_wrapper;

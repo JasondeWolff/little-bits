@@ -156,7 +156,13 @@ impl Resources {
                                 let t1 = w2.y - w1.y;
                                 let t2 = w3.y - w1.y;
 
-                                let r = 1.0 / (s1 * t2 - s2 * t1);
+                                let rdiv = s1 * t2 - s2 * t1;
+                                let r;
+                                if rdiv == 0.0 {
+                                    r = 0.0;
+                                } else {
+                                    r = 1.0 / rdiv;
+                                }
 
                                 let sdir = Float3::new(
                                     (t2 * x1 - t1 * x2) * r,
@@ -184,13 +190,19 @@ impl Resources {
                                 let t = tan1[i];
                             
                                 let mut xyz = t - (n * dot(n, t));
-                                xyz.normalize();
+                                if xyz.magnitude() != 0.0 {
+                                    xyz.normalize();
+                                }
                             
                                 let w;
                                 if dot(cross(n, t), tan2[i]) < 0.0 {
                                     w = -1.0;
                                 } else {
                                     w = 1.0;
+                                }
+
+                                if xyz.x.is_nan() {
+                                    println!("REEE");
                                 }
 
                                 vertices[i].tangent = Float4::new(xyz.x, xyz.y, xyz.z, w);

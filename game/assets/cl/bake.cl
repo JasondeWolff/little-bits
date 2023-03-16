@@ -43,7 +43,7 @@ __kernel void render(write_only image2d_t out,
 	const size_t height = get_global_size(1);
     const float unit = 1.0f / (width * height);
 
-    float learningRate = 0.01f;
+    float learningRate = 0.003f;
     float l2reg = 0.000001f;
     float beta1 = 0.9f;
     float beta2 = 0.999f;
@@ -62,7 +62,6 @@ __kernel void render(write_only image2d_t out,
         // const float3 vertical = camera->vertical.xyz;
 
         // float2 uv = (float2)(x, y) / (float2)(width, height);
-        // uv.y = 1.0f - uv.y;
 
         // ray.origin = E;
         // ray.direction = normalize(llc + uv.x * horizontal + uv.y * vertical - E);
@@ -92,15 +91,15 @@ __kernel void render(write_only image2d_t out,
             return;
         }
 
-        // float3 pc = read_imagef(position_target, (int2)(x, y)).xyz;
-        // if (length(pc) > 0.01f)
-        // {
-        //     float3 p = ray.origin + ray.direction * t;
-        //     if (distance(pc, p) > 0.05f)
-        //     {
-        //         printf("True Hit: %f %f %f\nRay Hit: %f %f %f\ndir: %f %f %f\norig: %f %f %f\nt: %f\n\n", pc.x, pc.y, pc.z, p.x, p.y, p.z, ray.direction.x, ray.direction.y, ray.direction.z, ray.origin.x, ray.origin.y, ray.origin.z, t);
-        //     }
-        // }
+        float3 pc = read_imagef(position_target, (int2)(x, y)).xyz;
+        if (length(pc) > 0.01f)
+        {
+            float3 p = ray.origin + ray.direction * t;
+            if (distance(pc, p) > 0.05f)
+            {
+                printf("True Hit: %f %f %f\nRay Hit: %f %f %f\ndir: %f %f %f\norig: %f %f %f\nt: %f\n\n", pc.x, pc.y, pc.z, p.x, p.y, p.z, ray.direction.x, ray.direction.y, ray.direction.z, ray.origin.x, ray.origin.y, ray.origin.z, t);
+            }
+        }
     }
 
     if (PointAABBIntersection(ray.origin + ray.direction * t, aabb))
@@ -126,7 +125,15 @@ __kernel void render(write_only image2d_t out,
         float3 color = (float3)(cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 1, &oc)], cache[OutputNeuron(nn, 2, &oc)]);
 
         // Calculate errors
-        float4 target = read_imagef(base_color_target, (int2)(x, y));
+        float4 target = read_imagef(normal_target, (int2)(x, y));
+
+        // if (target.x < 0.0f || target.x > 1.0f || isnan(target.x) == 1) {
+        //     printf("x: %f\n", target.x);
+        // } if (target.y < 0.0f || target.y > 1.0f || isnan(target.y) == 1) {
+        //     printf("y: %f\n", target.y);
+        // } if (target.z < 0.0f || target.z > 1.0f || isnan(target.z) == 1) {
+        //     printf("z: %f\n", target.z);
+        // }
 
         cache[TargetValue(nn, 0, &oc)] = target.x;
         cache[TargetValue(nn, 1, &oc)] = target.y;

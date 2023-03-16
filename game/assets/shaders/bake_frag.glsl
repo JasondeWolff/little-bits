@@ -12,6 +12,8 @@ layout(location = 2) out mediump vec4 Normal;
 layout(location = 3) out mediump vec4 MRO;
 layout(location = 4) out mediump vec4 Emission;
 
+#define EPSILON 0.0001
+
 uniform struct Material {
     vec4 baseColorFactor;
     float normalScale;
@@ -48,7 +50,7 @@ void main()
     {
         vec3 normal = texture(material.normalMap, fragTexCoord).rgb;
         normal = normal * 2.0 - 1.0;
-        N = normalize(mix(TBN * normal, TBN[2], 1.0 - material.normalScale));
+        N = normalize(mix(TBN * normal, TBN[2], 1.0 - material.normalScale) + EPSILON);
     }
     else
     {
@@ -80,7 +82,7 @@ void main()
 
     Position = vec4(fragPosition, d);
     BaseColor = vec4(albedo, 1.0);
-    Normal = vec4(N, 1.0);
+    Normal = vec4(N * 0.5 + 0.5, 1.0);
     MRO = vec4(metallic, roughness, occlusion, 1.0);
     Emission = vec4(emission, 1.0);
 }

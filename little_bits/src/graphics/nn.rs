@@ -10,6 +10,23 @@ use crate::{app, Timer};
 use crate::graphics::camera::*;
 use std::f32::consts::PI;
 
+/*
+TODO:
+ X fix normal_target training
+ - optimize gpu memory
+ - make density trainer
+ - serialize and deserialize mhg and nn
+ - create render (feed foward only) function
+ - NRC path tracing
+
+Create a render library which is responsible for:
+ - window creation
+ - input callbacks
+ - imgui setup
+ - rendering and training of NeMos
+ - uses mint for math (user can use any other math lib, mint would be easiest)
+ */
+
 struct MultiHashGrid {
     meta: MultiHashGridMeta,
     meta_buffer: CLBuffer,
@@ -354,7 +371,7 @@ impl Baker {
 
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
-        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(19), 2, 16, 512*16, size);
+        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(15), 2, 16, 512 * 16, size);
 
         let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32, 64, 3, 2);
         println!("Using {}B per kernel", neural_network.required_cache_size());
@@ -403,8 +420,8 @@ impl Baker {
                         }  render_target.unbind();
                     }
 
-                    let mut cl_camera_rep = CLCamera::new(camera_point.clone(), &(center - camera_point).normalized(), 60.0, 1.0);
-
+                    let mut cl_camera_rep = CLCamera::new(camera_point.clone(), (camera_point - center).normalized(), 60.0, 1.0);
+                    let mut loss = 0.0f32;
                     // Train nemo
                     gl_finish();
                     {
@@ -454,9 +471,10 @@ impl Baker {
 
                         self.command_queue.read_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr());
                         self.command_queue.read_buffer(&cl_out_momentum, momentum.as_mut_ptr());
-                        let mut loss = 0.0f32;
+                        loss = 0.0f32;
                         self.command_queue.read_buffer(&cl_loss, &mut loss as *mut f32);
                         println!("loss: {}", loss);
+                        
                         multi_hash_grid.read(&self.command_queue);
 
                         // Release gl resources
@@ -485,6 +503,10 @@ impl Baker {
                     }
 
                     window.swap_buffers();
+
+                    if (loss.is_nan()) {
+                        //std::thread::sleep(std::time::Duration::from_millis(100000));
+                    }
                 }
  
                 println!("time: {}s", ((timer.elapsed() * 10.0) as i32 as f32) / 10.0);

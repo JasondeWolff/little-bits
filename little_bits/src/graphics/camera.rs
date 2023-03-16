@@ -121,9 +121,9 @@ impl Camera {
 }
 
 impl CLCamera {
-    pub fn new(position: Float3, forward: &Float3, fov: f32, aspect_ratio: f32) -> Self {
+    pub fn new(position: Float3, forward: Float3, fov: f32, aspect_ratio: f32) -> Self {
         let w = forward;
-        let u = Float3::up().cross(*w).normalized();
+        let u = Float3::up().cross(w).normalized();
         let v = w.cross(u);
 
         let h = (fov.to_radians() * 0.5).tan();
