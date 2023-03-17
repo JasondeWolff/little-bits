@@ -108,7 +108,7 @@ impl CLContext {
     
         let context_properties: [cl_context_properties; 7] = unsafe {[
             cl3::context::CL_CONTEXT_PLATFORM, std::mem::transmute(platform_id),
-            cl3::gl::CL_WGL_HDC_KHR, wglGetCurrentDC().0,//*(wglGetCurrentDC().0 as *mut isize)
+            cl3::gl::CL_WGL_HDC_KHR, wglGetCurrentDC().0,
             cl3::gl::CL_GL_CONTEXT_KHR, std::mem::transmute(window.get_wgl_context()),
             0
         ]};

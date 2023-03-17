@@ -7,8 +7,6 @@
 
 #define MSE
 
-//#define USE_BIASES
-
 //#define DEBUG_MODE
 
 #include "rand.cl"
@@ -124,16 +122,11 @@ __kernel void render(write_only image2d_t out,
         Forward(&oc, nn, in_weights, cache);
         float3 color = (float3)(cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 1, &oc)], cache[OutputNeuron(nn, 2, &oc)]);
 
+        // write_imagef(out, (int2)(x, y), (float4)(color, 1.0));
+        // return;
+
         // Calculate errors
         float4 target = read_imagef(normal_target, (int2)(x, y));
-
-        // if (target.x < 0.0f || target.x > 1.0f || isnan(target.x) == 1) {
-        //     printf("x: %f\n", target.x);
-        // } if (target.y < 0.0f || target.y > 1.0f || isnan(target.y) == 1) {
-        //     printf("y: %f\n", target.y);
-        // } if (target.z < 0.0f || target.z > 1.0f || isnan(target.z) == 1) {
-        //     printf("z: %f\n", target.z);
-        // }
 
         cache[TargetValue(nn, 0, &oc)] = target.x;
         cache[TargetValue(nn, 1, &oc)] = target.y;

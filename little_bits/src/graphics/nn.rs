@@ -102,15 +102,6 @@ impl MultiHashGrid {
         cl_command_queue.read_buffer(&self.elem_buffer_writeonly, self.elems.as_mut_ptr() as *mut c_void);
     }
 
-    fn fix_nan(&mut self) {
-        let mut rng = rand::thread_rng();
-        for i in 0..self.elems.len() {
-            if f32::is_nan(self.elems[i]) {
-                self.elems[i] = rng.gen_range(-0.0001, 0.0001);
-            }
-        }
-    }
-
     pub fn set_kernel_arg(&mut self, cl_kernel: &CLKernel, idx: u32) -> u32 {
         cl_kernel.set_arg_buffer(idx + 0, &self.meta_buffer);
         cl_kernel.set_arg_buffer(idx + 1, &self.elem_buffer_readonly);
@@ -141,8 +132,7 @@ fn weight_init(rng: &mut rand::ThreadRng, nj: i32, nj1: i32) -> f32 {
 impl NeuralNetwork {
     fn new(input_count: i32, hidden_count: i32, output_count: i32, hidden_layer_count: i32) -> Self {
         let weight_count = input_count * hidden_count + hidden_count * hidden_count * (hidden_layer_count - 1) + hidden_count * output_count;
-        let bias_count = hidden_count * hidden_layer_count + output_count;
-        let mut weights = Vec::with_capacity((weight_count + bias_count) as usize);
+        let mut weights = Vec::with_capacity(weight_count as usize);
 
         let mut rng = rand::thread_rng();
         for _ in 0..(input_count * hidden_count) {
@@ -153,10 +143,6 @@ impl NeuralNetwork {
         }
         for _ in (input_count * hidden_count + hidden_count * hidden_count * hidden_layer_count)..(input_count * hidden_count + hidden_count * hidden_count * hidden_layer_count + hidden_count * output_count) {
             weights.push(weight_init(&mut rng, hidden_count, output_count));
-        }
-
-        for _ in 0..bias_count {
-            weights.push(rng.gen_range(-0.01, 0.01));
         }
         
         NeuralNetwork {
@@ -171,25 +157,6 @@ impl NeuralNetwork {
     fn required_cache_size(&self) -> usize {
         // Activations + Deltas + Targets
         ((self.input_count + self.hidden_count * self.hidden_layer_count + self.output_count) as usize * 2 + self.output_count as usize) * 4
-    }
-
-    fn fix_nan(&mut self) {
-        let mut rng = rand::thread_rng();
-        for i in 0..(self.input_count * self.hidden_count) as usize {
-            if f32::is_nan(self.weights[i]) {
-                self.weights[i] = weight_init(&mut rng, self.input_count, self.hidden_count);
-            }
-        }
-        for i in (self.input_count * self.hidden_count) as usize..(self.input_count * self.hidden_count + self.hidden_count * self.hidden_count * self.hidden_layer_count) as usize {
-            if f32::is_nan(self.weights[i]) {
-                self.weights[i] = weight_init(&mut rng, self.hidden_count, self.hidden_count);
-            }
-        }
-        for i in (self.input_count * self.hidden_count + self.hidden_count * self.hidden_count * self.hidden_layer_count) as usize..(self.input_count * self.hidden_count + self.hidden_count * self.hidden_count * self.hidden_layer_count + self.hidden_count * self.output_count) as usize {
-            if f32::is_nan(self.weights[i]) {
-                self.weights[i] = weight_init(&mut rng, self.hidden_count, self.output_count);
-            }
-        }
     }
 }
 
@@ -465,9 +432,11 @@ impl Baker {
                         self.kernel.set_arg_buffer(18, &cl_loss);
                         self.kernel.set_arg_buffer(19, &cl_errors);
 
+                        timer.reset();
                         let local_work_dims = vec![1, 1];
                         self.command_queue.execute(&self.kernel, &vec![display_target.width() as usize, display_target.height() as usize], Some(&local_work_dims));
                         self.command_queue.finish();
+                        println!("elapsed: {}ms", (timer.elapsed() as f32 * 10000.0) as i32 as f32 * 0.1);
 
                         self.command_queue.read_buffer(&cl_out_weights, neural_network.weights.as_mut_ptr());
                         self.command_queue.read_buffer(&cl_out_momentum, momentum.as_mut_ptr());
@@ -503,13 +472,7 @@ impl Baker {
                     }
 
                     window.swap_buffers();
-
-                    if (loss.is_nan()) {
-                        //std::thread::sleep(std::time::Duration::from_millis(100000));
-                    }
                 }
- 
-                println!("time: {}s", ((timer.elapsed() * 10.0) as i32 as f32) / 10.0);
             }
 
             println!("EPOCHS: [{} / {}]", e, params.epochs);

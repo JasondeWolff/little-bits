@@ -150,51 +150,6 @@ int OutputNeuron(__global NeuralNetwork* nn, int outputIndex, bool* oc)
     return nn->inputCount + nn->hiddenLayerCount * nn->hiddenCount + outputIndex;
 }
 
-int HiddenNeuronBias(__global NeuralNetwork* nn, int hiddenIndex, int hiddenLayer, bool* oc) 
-{
-#ifdef DEBUG_MODE
-    if (hiddenIndex < 0 || hiddenIndex >= nn->hiddenCount || hiddenLayer < 0 || hiddenLayer >= nn->hiddenLayerCount)
-    {
-        if (*oc)
-        {
-            printf("[OpenCL][ERROR] hiddenIndex or hiddenLayer is out of range. (HiddenNeuronBias)\n");
-            if (hiddenIndex < 0 || hiddenIndex >= nn->hiddenCount)
-            {
-                printf("hiddenIndex = %i range = [0, %i>\n", hiddenIndex, nn->hiddenCount);
-            }
-            if (hiddenLayer < 0 || hiddenLayer >= nn->hiddenLayerCount)
-            {
-                printf("hiddenLayer = %i range = [0, %i>\n", hiddenLayer, nn->hiddenLayerCount);
-            }
-
-            *oc = false;
-        }
-    }
-#endif
-
-    int weightsOffset = nn->inputCount * nn->hiddenCount + nn->hiddenCount * nn->hiddenCount * (nn->hiddenLayerCount - 1) + nn->hiddenCount * nn->outputCount;
-    return weightsOffset + hiddenLayer * nn->hiddenCount + hiddenIndex;
-}
-
-int OutputNeuronBias(__global NeuralNetwork* nn, int outputIndex, bool* oc) 
-{
-#ifdef DEBUG_MODE
-    if (outputIndex < 0 || outputIndex >= nn->outputCount)
-    {
-        if (*oc)
-        {
-            printf("[OpenCL][ERROR] outputIndex is out of range. (OutputNeuronBias)\n");
-            printf("outputIndex = %i range = [0, %i>\n", outputIndex, nn->outputCount);
-
-            *oc = false;
-        }
-    }
-#endif
-
-    int weightsOffset = nn->inputCount * nn->hiddenCount + nn->hiddenCount * nn->hiddenCount * (nn->hiddenLayerCount - 1) + nn->hiddenCount * nn->outputCount;
-    return weightsOffset + nn->hiddenLayerCount * nn->hiddenCount + outputIndex;
-}
-
 int InputNeuronDelta(__global NeuralNetwork* nn, int inputIndex, bool* oc) 
 {
 #ifdef DEBUG_MODE
@@ -322,10 +277,6 @@ void Forward(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, _
             activation += cache[InputNeuron(nn, j, oc)] * in_weights[InputHiddenNeuronWeight(nn, j, i, oc)];
         }
 
-#ifdef USE_BIASES
-        activation += in_weights[HiddenNeuronBias(nn, i, 0, oc)];
-#endif
-
         cache[HiddenNeuron(nn, i, 0, oc)] = Activation(activation);
     }
 
@@ -340,10 +291,6 @@ void Forward(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, _
                 activation += cache[HiddenNeuron(nn, j, l, oc)] * in_weights[HiddenHiddenNeuronWeight(nn, j, i, l, oc)];
             }
 
-#ifdef USE_BIASES
-            activation += in_weights[HiddenNeuronBias(nn, i, l + 1, oc)];
-#endif
-
             cache[HiddenNeuron(nn, i, l + 1, oc)] = Activation(activation);
         }
     }
@@ -357,10 +304,6 @@ void Forward(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, _
         {
             activation += cache[HiddenNeuron(nn, j, l, oc)] * in_weights[HiddenOutputNeuronWeight(nn, j, i, oc)];
         }
-
-#ifdef USE_BIASES
-        activation += in_weights[OutputNeuronBias(nn, i, oc)];
-#endif
 
         cache[OutputNeuron(nn, i, oc)] = activation;
     }
