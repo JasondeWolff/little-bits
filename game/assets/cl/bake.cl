@@ -26,7 +26,6 @@ __kernel void render(write_only image2d_t out,
     __global float* out_weights,
     __global float* in_momentum,
     __global float* out_momentum,
-    __local float* cache, int cacheSize,
     __global MutliHashGridMeta* mhgMeta,
     __global float* in_mhgElems,
     __global float* out_mhgElems,
@@ -100,6 +99,12 @@ __kernel void render(write_only image2d_t out,
         }
     }
 
+    float cache[329];
+    for (int i = 0; i < 329; i++)
+    {
+        cache[i] = 0.0f;
+    }
+
     if (PointAABBIntersection(ray.origin + ray.direction * t, aabb))
     {
         float3 pos = -aabb->low + (ray.origin + ray.direction * t);
@@ -126,7 +131,7 @@ __kernel void render(write_only image2d_t out,
         // return;
 
         // Calculate errors
-        float4 target = read_imagef(normal_target, (int2)(x, y));
+        float4 target = read_imagef(base_color_target, (int2)(x, y));
 
         cache[TargetValue(nn, 0, &oc)] = target.x;
         cache[TargetValue(nn, 1, &oc)] = target.y;

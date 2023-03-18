@@ -266,7 +266,7 @@ float DevActivation(float x)
     return DevReLU(x);
 }
 
-void Forward(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, __local float* cache)
+void Forward(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, float* cache)
 {
     // Input -> Hidden
     for (int i = 0; i < nn->hiddenCount; i++)
@@ -339,7 +339,7 @@ float AddMomentum(bool* oc, float delta, int idx, __global float* in_momentum, _
     return delta;
 }
 
-void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, __global float* out_weights, __global float* in_momentum, __global float* out_momentum, float beta1, float beta2, double epsilon, __local float* cache, float learningRate, float avgFactor, float L2reg, __global float* globalLoss)
+void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, __global float* out_weights, __global float* in_momentum, __global float* out_momentum, float beta1, float beta2, double epsilon, float* cache, float learningRate, float avgFactor, float L2reg, __global float* globalLoss)
 {
     // Calculate L2 penalty
     float weightSum = 0.0f;

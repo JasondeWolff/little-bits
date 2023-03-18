@@ -312,7 +312,7 @@ impl Baker {
             BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius * 1.5)
         };
 
-        //let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
+        let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
 
         let position_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
         let cl_position = CLGLTexture2D::new(&self.context, position_rt.tex(), CLBufferMode::Read);
@@ -425,15 +425,14 @@ impl Baker {
                         self.kernel.set_arg_buffer(9, &cl_out_weights);
                         self.kernel.set_arg_buffer(10, &cl_in_momentum);
                         self.kernel.set_arg_buffer(11, &cl_out_momentum);
-                        self.kernel.set_arg_empty(12, neural_network.required_cache_size());
-                        self.kernel.set_arg_int(13, (neural_network.required_cache_size() / 4) as i32);
-                        multi_hash_grid.set_kernel_arg(&self.kernel, 14);
-                        self.kernel.set_arg_buffer(17, &cl_aabb);
-                        self.kernel.set_arg_buffer(18, &cl_loss);
-                        self.kernel.set_arg_buffer(19, &cl_errors);
+                        //self.kernel.set_arg_empty(12, neural_network.required_cache_size());
+                        multi_hash_grid.set_kernel_arg(&self.kernel, 12);
+                        self.kernel.set_arg_buffer(15, &cl_aabb);
+                        self.kernel.set_arg_buffer(16, &cl_loss);
+                        self.kernel.set_arg_buffer(17, &cl_errors);
 
                         timer.reset();
-                        let local_work_dims = vec![1, 1];
+                        let local_work_dims = vec![16, 16];
                         self.command_queue.execute(&self.kernel, &vec![display_target.width() as usize, display_target.height() as usize], Some(&local_work_dims));
                         self.command_queue.finish();
                         println!("elapsed: {}ms", (timer.elapsed() as f32 * 10000.0) as i32 as f32 * 0.1);
