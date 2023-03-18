@@ -266,7 +266,7 @@ float DevActivation(float x)
     return DevReLU(x);
 }
 
-void Forward(bool* oc, __global NeuralNetwork* nn, __global float* in_weights, float* cache)
+void Forward(bool* oc, __global NeuralNetwork* nn, __local float* in_weights, float* cache)
 {
     // Input -> Hidden
     for (int i = 0; i < nn->hiddenCount; i++)
