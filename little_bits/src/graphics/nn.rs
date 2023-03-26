@@ -296,8 +296,6 @@ impl Baker {
         assert!(params.sample_resolution > 1, "Failed to bake nemo. (Sample resolution must be 2 or larger)");
 
         let (mut min, mut max) = model.bounds();
-        min *= 1.5;
-        max *= 1.5;
 
         let size = max - min;
         let radius = size.magnitude() * 0.5;
@@ -308,11 +306,11 @@ impl Baker {
         camera.set_aspect_ratio(Some(1.0));
         camera.set_fov(60.0);
         let camera_points = match params.sample_distribution {
-            BakeSampleDistribution::Random => Self::random_sphere_points(params.sample_positions, radius * 1.5),
-            BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius * 1.5)
+            BakeSampleDistribution::Random => Self::random_sphere_points(params.sample_positions, radius * 2.0),
+            BakeSampleDistribution::Uniform => Self::uniform_sphere_points(params.sample_positions, radius * 2.0)
         };
 
-        let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
+        //let camera_points = vec![Float3::new(radius * 1.5, 0.0, 0.0)];
 
         let position_rt = GLRenderTexture::new(params.sample_resolution, params.sample_resolution);
         let cl_position = CLGLTexture2D::new(&self.context, position_rt.tex(), CLBufferMode::Read);
@@ -338,7 +336,7 @@ impl Baker {
 
         let cl_camera = CLBuffer::new(&self.context, CLBufferMode::Read, std::mem::size_of::<CLCamera>());
 
-        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(15), 2, 16, 512 * 16, size);
+        let mut multi_hash_grid = MultiHashGrid::new(&self.context, 16, 2usize.pow(16), 2, 16, 512 * 16 * 2, size);
 
         let mut neural_network = NeuralNetwork::new(multi_hash_grid.required_nn_inputs() as i32, 64, 3, 2);
         println!("Using {}B per kernel", neural_network.required_cache_size());
@@ -359,7 +357,7 @@ impl Baker {
 
         for e in 0..params.epochs {
             for camera_point in &camera_points {
-                for ci in 0..2 {
+                for _ in 0..2 {
                     glfw.poll_events();
 
                     // Render inputs to rt's

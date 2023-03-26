@@ -130,9 +130,6 @@ __kernel void render(write_only image2d_t out,
         Forward(&oc, nn, localWeights, cache);
         float3 color = (float3)(cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 1, &oc)], cache[OutputNeuron(nn, 2, &oc)]);
 
-        write_imagef(out, (int2)(x, y), (float4)(color, 1.0));
-        return;
-
         // Calculate errors
         float4 target = read_imagef(base_color_target, (int2)(x, y));
         cache[TargetValue(nn, 0, &oc)] = target.x;
@@ -150,6 +147,29 @@ __kernel void render(write_only image2d_t out,
                 AtomicAddGridSampleValue(mhgMeta, out_mhgElems, l, f, pos, delta, &oc, 0);
             }
         }
+
+        // // Show results
+        // // Set neural network inputs
+        // {
+        //     for (int l = 0; l < mhgMeta->resolutionLayers; l++)
+        //     {
+        //         for (int f = 0; f < mhgMeta->featuresPerEntry; f++)
+        //         {
+        //             if (l > 16 - 16)
+        //             {
+        //             float sampleValue = GetGridSampleValue(mhgMeta, in_mhgElems, l, f, pos, &oc, 0);
+        //             cache[InputNeuron(nn, f + l * mhgMeta->featuresPerEntry, &oc)] = sampleValue;
+        //             }
+        //             else
+        //             {
+        //                 cache[InputNeuron(nn, f + l * mhgMeta->featuresPerEntry, &oc)] = 0.0f;
+        //             }
+        //         }
+        //     }
+        // }
+
+        // Forward(&oc, nn, localWeights, cache);
+        // float3 color = (float3)(cache[OutputNeuron(nn, 0, &oc)], cache[OutputNeuron(nn, 1, &oc)], cache[OutputNeuron(nn, 2, &oc)]);
 
         write_imagef(out, (int2)(x, y), (float4)(color, 1.0));
     }
