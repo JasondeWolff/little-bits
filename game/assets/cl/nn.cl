@@ -253,7 +253,7 @@ float Sigmoid(float x)
 
 float inline DevSigmoid(float x)
 {
-	return x * (1.0f - x);
+	return Sigmoid(x) * (1.0f - Sigmoid(x));
 }
 
 float Activation(float x)
@@ -362,10 +362,10 @@ void Backpropagate(bool* oc, __global NeuralNetwork* nn, __global float* in_weig
             float outputNeuron = cache[OutputNeuron(nn, i, oc)];
 
 #ifdef MSE
-            float loss = (cache[TargetValue(nn, i, oc)] - outputNeuron) * (cache[TargetValue(nn, i, oc)] - outputNeuron) + L2reg * weightSum;
+            float loss = ((cache[TargetValue(nn, i, oc)] - outputNeuron) * (cache[TargetValue(nn, i, oc)] - outputNeuron) + L2reg) * weightSum;
             float derivativeLoss = 2.0f * (cache[TargetValue(nn, i, oc)] - outputNeuron) + 2.0f * L2reg * weightSumDerivative;
 #else
-            float loss = (cache[TargetValue(nn, i, oc)] - outputNeuron) + L2reg * weightSum;
+            float loss = ((cache[TargetValue(nn, i, oc)] - outputNeuron) + L2reg) * weightSum;
             float derivativeLoss = (cache[TargetValue(nn, i, oc)] - outputNeuron) + 2.0f * L2reg * weightSumDerivative;
 #endif
 
