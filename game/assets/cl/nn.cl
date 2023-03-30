@@ -85,7 +85,7 @@ int HiddenOutputNeuronWeight(__global NeuralNetwork* nn, int hiddenIndex, int ou
 #endif
 
     int inputWeightsOffset = nn->inputCount * nn->hiddenCount;
-    int hiddenWeightsOffset = nn->hiddenCount * nn->hiddenCount * nn->hiddenLayerCount - 1;
+    int hiddenWeightsOffset = nn->hiddenCount * nn->hiddenCount * (nn->hiddenLayerCount - 1);
     return inputWeightsOffset + hiddenWeightsOffset + outputIndex + hiddenIndex * nn->outputCount;
 }
 
